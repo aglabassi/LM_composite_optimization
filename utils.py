@@ -10,7 +10,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-def plot_multiple_metrics_log_scale(metric_datasets, labels, title, xlabel='Iteration', ylabel='Value', logscale=True):
+def plot_multiple_metrics_log_scale(metric_datasets, labels, colors, line_styles, title, xlabel='Iteration', ylabel='Value', logscale=True):
     """
     Plots multiple metric datasets on a logarithmic scale on the same figure.
 
@@ -22,8 +22,8 @@ def plot_multiple_metrics_log_scale(metric_datasets, labels, title, xlabel='Iter
     - ylabel: Label for the y-axis.
     """
     plt.figure(figsize=(10, 8))  # Adjust size as needed
-    for dataset, label in zip(metric_datasets, labels):
-        plt.plot(dataset, label=label)
+    for dataset, label, color, line_style in zip(metric_datasets, labels, colors, line_styles):
+        plt.plot(dataset, label=label, color=color, linestyle=line_style)
     plt.title(title)
     plt.xlabel(xlabel)
     plt.ylabel(ylabel)
@@ -44,7 +44,7 @@ def matrix_rank_svd(matrix, tol=1e-6):
     return rank
 
 
-def gen_random_point_in_neighborhood(X_true, radius, r):
+def gen_random_point_in_neighborhood(X_true, radius, r, r_true):
     n, dim = X_true.shape  # n is the number of points, dim is the dimensionality
     
     padding = np.zeros((n, r - r_true))
@@ -201,59 +201,62 @@ def create_rip_transform(n, d):
 
 
 
-def c(x):
-    return x @ x.T 
-
-def h(M):
-    return np.linalg.norm(A(M)-y_true,ord=1)
 
 
 
-#X X^T flattened jacobian
-def jacobian_c(X):
-    n, r = X.shape
-    jac = np.zeros((n*n, n*r))
-
-    for i in range(n):
-        for j in range(n):
-            for k in range(n):
-                for l in range(r):
-                    # Derivative of c_ij with respect to x_kl
-                    if i != j:
-                        if i ==k:
-                            jac[i*n + j, k*r + l] = X[j, l]
-                        if j ==k:
-                            jac[i*n + j, k*r + l] = X[i, l]
-                            
-                            
-                    if i == j:
-                        if i == k:
-                            jac[i*n + j, k*r + l] = 2*X[i, l]
-                            
+def l1_matrix_recovery(x0, T, h_star, U_star, X_true_padded, lambdaa, r_true, A, y_true, damek=False):
     
-    return jac #n^2 X nr matrix
+    def c(x):
+        return x @ x.T 
+
+    def h(M):
+        return np.linalg.norm(A(M)-y_true,ord=1)
+
+
+
+    #X X^T flattened jacobian
+    def jacobian_c(X):
+        n, r = X.shape
+        jac = np.zeros((n*n, n*r))
+
+        for i in range(n):
+            for j in range(n):
+                for k in range(n):
+                    for l in range(r):
+                        # Derivative of c_ij with respect to x_kl
+                        if i != j:
+                            if i ==k:
+                                jac[i*n + j, k*r + l] = X[j, l]
+                            if j ==k:
+                                jac[i*n + j, k*r + l] = X[i, l]
+                                
+                                
+                        if i == j:
+                            if i == k:
+                                jac[i*n + j, k*r + l] = 2*X[i, l]
+                                
+        
+        return jac #n^2 X nr matrix
+        
+        
+    def subdifferential_h(M):
+        
+        residual = A(M) - y_true
+        
+        transformation_matrix = A.__closure__[0].cell_contents  # Extract the transformation matrix used in A
+        adjoint_A = transformation_matrix.T  # Adjoint (transpose) of the transformation matrix
+        
+
     
-    
-def subdifferential_h(M):
-    # Compute A(M) - y_true
-    residual = A(M) - y_true
+        subdiff = np.sign(residual) 
+        
+        v = np.dot(adjoint_A, subdiff)
 
-    # Compute the subdifferential of the l1-norm at residual
-    subdiff = np.sign(residual)  # Elements are 1 if positive, -1 if negative, 0 if zero
+        
 
-    # To backpropagate through A, we would need to apply the adjoint (transpose) of the transformation matrix
-    # Assuming A is a linear transformation represented by a matrix
-    transformation_matrix = A.__closure__[0].cell_contents  # Extract the transformation matrix used in A
-    adjoint_A = transformation_matrix.T  # Adjoint (transpose) of the transformation matrix
-
-    # Backpropagate the subdifferential through A
-    subdiff_backpropagated = np.dot(adjoint_A, subdiff)
-
-    return subdiff_backpropagated  # n^2 dimension
+        return v # n^2 dimension
 
 
-
-def gnp_method(x0, T, h_star, c, subdifferential_h, jacobian_c, U_star, X_true_padded, damek=False):
     x = x0
     x_flat = x0.reshape(-1)
     losses = []
@@ -289,9 +292,9 @@ def gnp_method(x0, T, h_star, c, subdifferential_h, jacobian_c, U_star, X_true_p
         
         
         if damek:
-            preconditionned_g, _,_,_ = np.linalg.lstsq(jacob_c.T @ jacob_c, g, rcond=None)
+            preconditionned_g, _,_,_ = np.linalg.lstsq(jacob_c.T @ jacob_c + lambdaa*np.eye(tmp,tmp), g, rcond=None)
         else:
-            preconditionned_g = (g.reshape(n,r) @ np.linalg.inv(x.T@x)).reshape(-1)
+            preconditionned_g = (g.reshape(x.shape[0],x.shape[1]) @ np.linalg.inv(x.T@x + lambdaa*np.eye(x.shape[1],x.shape[1]))).reshape(-1)
         
         
         
@@ -305,7 +308,7 @@ def gnp_method(x0, T, h_star, c, subdifferential_h, jacobian_c, U_star, X_true_p
         
         print('Iteration number: ', t)
         print("r^*=", r_true)
-        print("r=", r)
+        print("r=", x.shape[1])
         print('h(c(x)) =',h(c(x)))
         print('---------------------')
         
@@ -322,12 +325,139 @@ def gnp_method(x0, T, h_star, c, subdifferential_h, jacobian_c, U_star, X_true_p
         # Update x
         # grad_c * v is equivalent to jacob_c.T @ v (subgradient of the composition f := h ◦ c)
         x_flat = x_flat - gamma * preconditionned_g
-        x = x_flat.reshape(n,r)
+        x = x_flat.reshape(x.shape[0],x.shape[1])
         
 
     return x, losses, error_A, error_B, error_C, error_total
 
 
+
+
+def l2_method(x0, T, h_star, U_star, X_true_padded, lambdaa, r_true, A, y_true, damek=False):
+    
+    def c(x):
+        return x @ x.T 
+
+    def h(M):
+        return np.linalg.norm(A(M)-y_true,ord=1)
+
+
+
+    #X X^T flattened jacobian
+    def jacobian_c(X):
+        n, r = X.shape
+        jac = np.zeros((n*n, n*r))
+
+        for i in range(n):
+            for j in range(n):
+                for k in range(n):
+                    for l in range(r):
+                        # Derivative of c_ij with respect to x_kl
+                        if i != j:
+                            if i ==k:
+                                jac[i*n + j, k*r + l] = X[j, l]
+                            if j ==k:
+                                jac[i*n + j, k*r + l] = X[i, l]
+                                
+                                
+                        if i == j:
+                            if i == k:
+                                jac[i*n + j, k*r + l] = 2*X[i, l]
+                                
+        
+        return jac #n^2 X nr matrix
+        
+        
+    def subdifferential_h(M):
+        # Compute A(M) - y_true
+        residual = A(M) - y_true
+
+        # Compute the subdifferential of the l1-norm at residual
+        subdiff = np.sign(residual)  # Elements are 1 if positive, -1 if negative, 0 if zero
+
+        # To backpropagate through A, we would need to apply the adjoint (transpose) of the transformation matrix
+        # Assuming A is a linear transformation represented by a matrix
+        transformation_matrix = A.__closure__[0].cell_contents  # Extract the transformation matrix used in A
+        adjoint_A = transformation_matrix.T  # Adjoint (transpose) of the transformation matrix
+
+        # Backpropagate the subdifferential through A
+        subdiff_backpropagated = np.dot(adjoint_A, subdiff)
+
+        return subdiff_backpropagated  # n^2 dimension
+
+
+    x = x0
+    x_flat = x0.reshape(-1)
+    losses = []
+
+    losses = []
+    error_A = []
+    error_B = []
+    error_C = []
+    error_total = []
+
+    # Pre-compute A*, B*, C*
+    #A_star, B_star, C_star = compute_iterate_decomposition(X_true_padded, U_star)
+
+
+    for t in range(T):
+        
+        # Compute the Jacobian of c at x
+        jacob_c = jacobian_c(x)
+        
+        # Compute v from the subdifferential of h at c(x)
+        v = subdifferential_h(c(x))
+        
+        #subdifferential of h(c(x)) w.r.t x
+        g = jacob_c.T @ v
+        
+        
+        
+        tmp = jacob_c.T.shape[0]
+       # preconditioned_v = v.reshape(n, n) @ x @ np.linalg.inv(x.T @ x + 0.001 * np.eye(r, r)) 
+        # Solve the linear system to find preconditioned v (Z)
+        # This is equivalent to computing the pseudoinverse jacob_c @ v
+        #preconditionned_g, _,_,_ = np.linalg.lstsq(jacob_c.T @ jacob_c + 0.001*np.eye(tmp, tmp), g, rcond=None)
+        
+        
+        if damek:
+            preconditionned_g, _,_,_ = np.linalg.lstsq(jacob_c.T @ jacob_c + lambdaa*np.eye(tmp,tmp), g, rcond=None)
+        else:
+            preconditionned_g = (g.reshape(x.shape[0],x.shape[1]) @ np.linalg.inv(x.T@x + lambdaa*np.eye(x.shape[1],x.shape[1]))).reshape(-1)
+        
+        
+        
+        # Compute the projection9\
+        aux = (jacob_c @ preconditionned_g)
+        proj_norm_squared = np.dot(aux , aux) 
+        #proj_norm_squared = np.dot(preconditioned_v, preconditioned_v)
+
+        # Update  polyak step size gamma
+        gamma = (h(c(x)) - h_star) / proj_norm_squared
+        
+        print('Iteration number: ', t)
+        print("r^*=", r_true)
+        print("r=", x.shape[1])
+        print('h(c(x)) =',h(c(x)))
+        print('---------------------')
+        
+        # After updating x
+        #A_t, B_t, C_t = compute_iterate_decomposition(x, U_star)
+        
+        # Compute errors and save them
+        
+        #error_A.append(np.linalg.norm(A_t - A_star, ord='fro'))
+        #error_B.append(np.linalg.norm(B_t - B_star, ord='fro'))
+        #error_C.append(np.linalg.norm(C_t - C_star, ord='fro'))
+        error_total.append(np.linalg.norm(x@x.T - X_true_padded@X_true_padded.T, ord='fro'))
+        losses.append(h(c(x)))
+        # Update x
+        # grad_c * v is equivalent to jacob_c.T @ v (subgradient of the composition f := h ◦ c)
+        x_flat = x_flat - gamma * preconditionned_g
+        x = x_flat.reshape(x.shape[0],x.shape[1])
+        
+
+    return x, losses, error_A, error_B, error_C, error_total
 
 
 
