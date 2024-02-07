@@ -7,12 +7,12 @@ Created on Tue Feb  2 20:14:14 2024
 """
 
 # Contents of main.py
-from utils import create_rip_transform, generate_matrix_with_condition, compact_eigendecomposition, gen_random_point_in_neighborhood, l1_matrix_recovery, plot_multiple_metrics_log_scale
+from utils import create_rip_transform, generate_matrix_with_condition, compact_eigendecomposition, gen_random_point_in_neighborhood, matrix_recovery, plot_multiple_metrics_log_scale
 import numpy as np
 
 
 #P
-def experiment_1(r_true, ranks, n, T, cond_number, init_radius_ratio, lambdaa):
+def experiment_1(r_true, ranks, n, T, cond_number, init_radius_ratio, lambdaa, loss_ord):
         
     d = 10*n*r_true
     
@@ -38,11 +38,11 @@ def experiment_1(r_true, ranks, n, T, cond_number, init_radius_ratio, lambdaa):
         X_true_padded = np.hstack((X_true, padding))
         
         
-        _, losses, errors_A, errors_B, errors_C,_ = l1_matrix_recovery(x0, T, 0, U_star, X_true_padded, lambdaa, r_true, A, y_true, damek=False)
+        _, losses, errors_A, errors_B, errors_C,_ = matrix_recovery(x0, T, 0, U_star, X_true_padded, lambdaa, r_true, A, y_true, damek=False, loss_ord=2)
         
         losses_scaled.append(losses)
         
-        _, losses, errors_A, errors_B, errors_C,_ = l1_matrix_recovery(x0, T, 0, U_star, X_true_padded, lambdaa, r_true, A, y_true, damek=True)
+        _, losses, errors_A, errors_B, errors_C,_ = matrix_recovery(x0, T, 0, U_star, X_true_padded, lambdaa, r_true, A, y_true, damek=True, loss_ord=2)
         
         losses_gnp.append(losses)
         
@@ -51,11 +51,11 @@ def experiment_1(r_true, ranks, n, T, cond_number, init_radius_ratio, lambdaa):
     plot_multiple_metrics_log_scale(losses_scaled+losses_gnp, [f'r={r}, scaled' for r in ranks] + [f'r={r}, gnp' for r in ranks], 
                                     ['blue']*len(losses_scaled) + ["red"]*len(losses_gnp),
                                     [f'{"-"*(i+1) if i < 2 else "-."}' for i in range(len(losses_scaled))] + [f'{"-"*(i+1) if i < 2 else "-."}' for i in range(len(losses_gnp))], 
-                                    f'Loss function for Matrix Recovery, cond_number = {cond_number}, lambda={lambdaa}', xlabel='Iteration', ylabel='Loss', logscale=True)
+                                    f'Loss function for Matrix Recovery, cond_number = {cond_number}, lambda={lambdaa}, loss=l{loss_ord}', xlabel='Iteration', ylabel='Loss', logscale=True)
 
 
 
-def experiment_2(r_true, cond_numbers, n, T, init_radius_ratio, lambdaa):
+def experiment_2(r_true, cond_numbers, n, T, init_radius_ratio, loss_ord):
     
     d = 10*n*r_true
     
@@ -81,11 +81,11 @@ def experiment_2(r_true, cond_numbers, n, T, init_radius_ratio, lambdaa):
         X_true_padded = np.hstack((X_true, padding))
         
         
-        _, losses, errors_A, errors_B, errors_C,_ = l1_matrix_recovery(x0, T, 0, U_star, X_true_padded, lambdaa, r_true, A, y_true, damek=False)
+        _, losses, errors_A, errors_B, errors_C,_ = matrix_recovery(x0, T, 0, U_star, X_true_padded, lambdaa, r_true, A, y_true, damek=False, loss_ord=2)
         
         losses_scaled.append(losses)
         
-        _, losses, errors_A, errors_B, errors_C,_ = l1_matrix_recovery(x0, T, 0, U_star, X_true_padded, lambdaa, r_true, A, y_true, damek=True)
+        _, losses, errors_A, errors_B, errors_C,_ = matrix_recovery(x0, T, 0, U_star, X_true_padded, lambdaa, r_true, A, y_true, damek=True, loss_ord=2)
         
         losses_gnp.append(losses)
     
@@ -103,26 +103,30 @@ def experiment_2(r_true, cond_numbers, n, T, init_radius_ratio, lambdaa):
     plot_multiple_metrics_log_scale(losses_scaled+losses_gnp, [f'cond_n={c}, scaled' for c in cond_numbers] + [f'cond_n={c}, gnp' for c in cond_numbers], 
                                     ['blue']*len(losses_scaled) + ["red"]*len(losses_gnp),
                                     [f'{"-"*(i+1) if i < 2 else "-."}' for i in range(len(losses_scaled))] + [f'{"-"*(i+1) if i < 2 else "-."}' for i in range(len(losses_gnp))], 
-                                    f'Loss function for Matrix Recovery, r_true = {r_true}, lambda={lambdaa}', xlabel='Iteration', ylabel='Loss', logscale=True)
+                                    f'Loss function for Matrix Recovery, r_true = {r_true}, lambda=0, loss=l{loss_ord}', xlabel='Iteration', ylabel='Loss', logscale=True)
 
 
     
 
 if __name__ == "__main__":
     
+    loss_ord = 2
+    
     r_true = 3
-    ranks_test = [3,6, 10]
-    cond_number_tests = [1,100,1000]
+
+    
     
     T = 100
     n = 50
     lambdaa  = 0
     init_radius_ratio = 0.1
     cond_number = 3
+    ranks_test = [3,6, 10]
+    cond_number_tests = [1,100,1000]
     
-    experiment_1(r_true, ranks_test, n, T, cond_number, init_radius_ratio, lambdaa)
+    experiment_1(r_true, ranks_test, n, T, cond_number, init_radius_ratio, lambdaa, loss_ord)
       
     
-    experiment_2(r_true, cond_number_tests, n, T, init_radius_ratio, lambdaa)
+    experiment_2(r_true, cond_number_tests, n, T, init_radius_ratio, loss_ord)
     
     
