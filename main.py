@@ -7,7 +7,7 @@ Created on Tue Feb  2 20:14:14 2024
 """
 
 # Contents of main.py
-from utils import create_rip_transform, generate_matrix_with_condition, compact_eigendecomposition, gen_random_point_in_neighborhood, matrix_recovery, plot_multiple_metrics_log_scale
+from utils import create_rip_transform, generate_matrix_with_condition, compact_eigendecomposition, gen_random_point_in_neighborhood, matrix_recovery, plot_multiple_metrics_log_scale, plot_losses_with_styles
 import numpy as np
 
 
@@ -108,12 +108,60 @@ def experiment_2(r_true, cond_numbers, n, T, init_radius_ratio, loss_ord):
 
     
     
+
+
+
+#multiple cond numbers and  ranks
+def experiment_3(r_true, ranks, cond_numbers, n, T, init_radius_ratio, loss_ord):
     
+    d = 10*n*r_true
+    
+    A,A_adj = create_rip_transform(n, d) 
+    
+
+    
+    losses_scaled = []
+    losses_gn = []
+    for cond_number in cond_numbers:
+        
+        X_true = generate_matrix_with_condition(n, r_true, cond_number)
+        M_true = X_true @ X_true.T
+        A,A_adj = create_rip_transform(n, d) 
+        y_true = A(M_true)
+        
+        
+        D_star_sq, U_star = compact_eigendecomposition(X_true@X_true.T)
+        
+        
+        radius = init_radius_ratio*np.linalg.norm(X_true, ord='fro')
+        
+        for r in ranks: 
+            
+            x0 = gen_random_point_in_neighborhood(X_true, radius, r, r_true)
+            
+            padding = np.zeros((n, r - r_true))
+            X_true_padded = np.hstack((X_true, padding))
+            
+            
+            _, losses, errors_A, errors_B, errors_C,_ = matrix_recovery(x0, T, 0, U_star, X_true_padded, lambdaa, r_true, A, A_adj, y_true, damek=False, loss_ord=2)
+            
+            losses_scaled.append(losses)
+            
+            _, losses, errors_A, errors_B, errors_C,_ = matrix_recovery(x0, T, 0, U_star, X_true_padded, lambdaa, r_true, A, A_adj, y_true, damek=True, loss_ord=2)
+            
+            losses_gn.append(losses)
+            
+    plot_losses_with_styles(losses_scaled, losses_gn, cond_numbers, ranks, r_true, loss_ord, lambdaa)
+        
+    
+    
+    
+
     
 
 if __name__ == "__main__":
     
-    loss_ord = 2 #L1 or l2 loss. If L2: smooth optimization regime with constant stepsize. If L1: nonsmooth optimization with poliak 
+    loss_ord = 1 #L1 or l2 loss. If L2: smooth optimization regime with constant stepsize. If L1: nonsmooth optimization with poliak 
 
     r_true = 3
 
@@ -124,10 +172,13 @@ if __name__ == "__main__":
     lambdaa  = 0.000000001
     init_radius_ratio = 0.1
     cond_number = 10
-    ranks_test = [3, 15]
-    cond_number_tests = [1,100,1000]
+    ranks_test = [3, 15, 20]
+    cond_numbers_test = [1,1000]
     
-    experiment_1(r_true, ranks_test, n, T, cond_number, init_radius_ratio, lambdaa, loss_ord)
+    experiment_3(r_true, ranks_test, cond_numbers_test, n, T, init_radius_ratio, loss_ord)
+    
+    
+    #experiment_1(r_true, ranks_test, n, T, cond_number, init_radius_ratio, lambdaa, loss_ord)
       
     
     #experiment_2(r_true, cond_number_tests, n, T, init_radius_ratio, loss_ord)

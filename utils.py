@@ -8,8 +8,67 @@ Created on Wed Jan 17 10:53:34 2024
 
 import numpy as np
 import matplotlib.pyplot as plt
+import itertools
+
+def plot_losses_with_styles(losses_scaled, losses_gn, cond_numbers, ranks, r_true, loss_ord, lambdaa, num_dots=20):
+    # Define color palettes for 'scaled' (blue family) and 'gn' (red family)
+ 
+    blue_palette = ['#0d47a1', '#1976d2', '#2196f3', '#64b5f6', '#bbdefb']
+    # Shades of red for 'gn' (warm colors)
+    red_palette = ['#b71c1c', '#e53935', '#ef5350', '#e57373', '#ffcdd2']
 
 
+    markers = ['o', 's', '^', 'D', '*', 'p', 'h', 'x']  # Different markers for different condition numbers
+    linestyles = ['-', '--', '-.', ':']  # Different linestyles for different ranks
+    
+    # Generate labels for plots
+    labels_scaled = [f'scaled, cond_n={c}, r={r}' for c in cond_numbers for r in ranks]
+    labels_gn = [f'gn, cond_n={c}, r={r}' for c in cond_numbers for r in ranks]
+    labels = labels_scaled + labels_gn
+
+    # Assign colors, markers, and linestyles
+    blue_colors_cycle = itertools.cycle(blue_palette)
+    red_colors_cycle = itertools.cycle(red_palette)
+    plot_colors = [next(blue_colors_cycle) if i < len(labels_scaled) else next(red_colors_cycle) for i in range(len(labels))]
+
+    markers_cycle = itertools.cycle(markers)
+    plot_markers = {c: next(markers_cycle) for c in cond_numbers}
+    linestyles_cycle = itertools.cycle(linestyles)
+    plot_linestyles = {r: next(linestyles_cycle) for r in ranks}
+
+    # Prepare the plot
+    plt.figure(figsize=(10, 6))
+    lines = []  # To store line objects for the legend
+    for i, label in enumerate(labels):
+        color = plot_colors[i]
+        cond_n, r = label.split(',')[1].strip(), label.split(',')[2].strip()
+        marker = plot_markers[int(cond_n.split('=')[1])]
+        linestyle = plot_linestyles[int(r.split('=')[1])]
+        
+        loss_data = losses_scaled[i] if i < len(losses_scaled) else losses_gn[i - len(losses_scaled)]
+        
+        # Plot the line
+        line, = plt.plot(loss_data, color=color, linestyle=linestyle)
+        
+        # Calculate indices for evenly spaced markers
+        if len(loss_data) > 1:  # Ensure there's data to plot
+            indices = np.round(np.linspace(0, len(loss_data) - 1, num_dots)).astype(int)
+            # Plot markers at these indices
+            plt.plot(indices, [loss_data[idx] for idx in indices], linestyle='None', marker=marker, color=color)
+        
+        # Add a dummy line to the list for creating a custom legend
+        lines.append(plt.Line2D([0], [0], color=color, linestyle=linestyle, marker=marker, label=label))
+    
+    plt.title(f'Loss function for Matrix Recovery, r_true = {r_true}, lambda={lambdaa}, loss=l{loss_ord}')
+    plt.xlabel('Iteration')
+    plt.ylabel('Loss')
+    plt.yscale('log')
+    
+    # Create a custom legend
+    plt.legend(handles=lines)
+    plt.show()
+    
+    
 def plot_multiple_metrics_log_scale(metric_datasets, labels, colors, line_styles, title, xlabel='Iteration', ylabel='Value', logscale=True):
     """
     Plots multiple metric datasets on a logarithmic scale on the same figure.
@@ -352,12 +411,6 @@ def matrix_recovery(x0, T, h_star, U_star, X_true_padded, lambdaa, r_true, A, A_
 
 
 
-
-
-
-def zhang(x0, T,A,y_true, lambdaa=0.1):
-    pass
-    
 
 
 
