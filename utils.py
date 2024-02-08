@@ -62,6 +62,9 @@ def gen_random_point_in_neighborhood(X_true, radius, r, r_true):
     # Step 3: Scale the directions by the distances (need to reshape distances for broadcasting)
     random_points = X_padded + directions * distances[:, np.newaxis]
     
+    
+    #random_points = np.random.normal(0, 1, (n, r))*10**-15
+    
     return random_points
 
 
@@ -174,7 +177,7 @@ def compute_iterate_decomposition(X, U_star):
 
 def create_rip_transform(n, d):
     """
-    Create a linear transformation that maps matrices of dimension n*r to vectors of dimension d.
+    Create a linear transformation that maps matrices of dimension n*n to vectors of dimension d.
     This uses a random Gaussian matrix, which is known to satisfy the RIP under certain conditions.
     """
     # Flattening factor to convert the matrix to a vector
@@ -188,6 +191,7 @@ def create_rip_transform(n, d):
     mask_diag = np.eye(transformation_matrix_diag.shape[0], transformation_matrix_diag.shape[1])
     mask_offdiag = 1 - mask_diag
     transformation_matrix = transformation_matrix_diag*mask_diag + transformation_matrix_offdiag*mask_offdiag
+    adjoint_transformation_matrix = transformation_matrix.T
     
 
     # Define the linear transformation function
@@ -197,20 +201,26 @@ def create_rip_transform(n, d):
         # Apply the linear transformation
         return np.dot(transformation_matrix, matrix_flattened)
 
-    return transform
+
+    def adjoint_transform(vector):
+        # Apply the adjoint linear transformation, then reshape the result back into a matrix
+        matrix_reconstructed = np.dot(adjoint_transformation_matrix, vector)
+        return matrix_reconstructed.reshape(n, n)
+
+    return transform, adjoint_transform
 
 
 
 
 
 
-def matrix_recovery(x0, T, h_star, U_star, X_true_padded, lambdaa, r_true, A, y_true, loss_ord=1, damek=False):
+def matrix_recovery(x0, T, h_star, U_star, X_true_padded, lambdaa, r_true, A, A_adj, y_true, loss_ord=1, damek=False):
     
     def c(x):
         return x @ x.T 
 
     def h(M):
-        return np.linalg.norm(A(M)-y_true,ord=loss_ord)**loss_ord
+        return (np.linalg.norm(A(M)-y_true,ord=loss_ord)**loss_ord)/loss_ord
 
 
 
@@ -285,34 +295,43 @@ def matrix_recovery(x0, T, h_star, U_star, X_true_padded, lambdaa, r_true, A, y_
         #subdifferential of h(c(x)) w.r.t x
         g = jacob_c.T @ v
         
-        
-        
-        tmp = jacob_c.T.shape[0]
-       # preconditioned_v = v.reshape(n, n) @ x @ np.linalg.inv(x.T @ x + 0.001 * np.eye(r, r)) 
-        # Solve the linear system to find preconditioned v (Z)
-        # This is equivalent to computing the pseudoinverse jacob_c @ v
-        #preconditionned_g, _,_,_ = np.linalg.lstsq(jacob_c.T @ jacob_c + 0.001*np.eye(tmp, tmp), g, rcond=None)
-        
-        
+
         if damek:
+            tmp = jacob_c.T.shape[0]
             preconditionned_g, _,_,_ = np.linalg.lstsq(jacob_c.T @ jacob_c + lambdaa*np.eye(tmp,tmp), g, rcond=None)
+            aux = (jacob_c @ preconditionned_g)
+            proj_norm_squared = np.dot(aux , aux)
+            preconditionned_g = preconditionned_g.reshape(n,r)
+            
         else:
-            preconditionned_g = (g.reshape(n,r) @ np.linalg.inv(x.T@x + lambdaa*np.eye(r,r))).reshape(-1)
+            if loss_ord == 2:
+                preconditionned_g = A_adj((A(x@x.T) - y_true))@ x @ np.linalg.inv(x.T@x + lambdaa*np.eye(r,r))
+                
+            elif loss_ord == 1:
+                preconditionned_g = A_adj(( np.sign(A(x@x.T) - y_true)) ) @ x @ np.linalg.inv(x.T@x + lambdaa*np.eye(r,r))
+                
+            preconditionned_g= preconditionned_g.reshape(-1)
+            aux = (jacob_c @ preconditionned_g)
+            proj_norm_squared = np.dot(aux , aux)
+            preconditionned_g  = preconditionned_g.reshape(n,r)
+            
+                
+                
+            
+                    
+        gamma = (h(c(x)) - h_star) / proj_norm_squared if loss_ord == 1 else 0.000001
         
+        #ZHANG FORM
         
-        
-        # Compute the projection9\
-        aux = (jacob_c @ preconditionned_g)
-        proj_norm_squared = np.dot(aux , aux) 
+
         #proj_norm_squared = np.dot(preconditioned_v, preconditioned_v)
 
         # Update  polyak step size gamma
-        gamma = (h(c(x)) - h_star) / proj_norm_squared if loss_ord == 1 else 0.0000001
         
         print('Iteration number: ', t)
         print("r^*=", r_true)
         print("r=", r)
-        print('h(c(x)) =',h(c(x)))
+        print('h(c(x)) =', h(c(x)))
         print('---------------------')
         
         # After updating x
@@ -325,16 +344,20 @@ def matrix_recovery(x0, T, h_star, U_star, X_true_padded, lambdaa, r_true, A, y_
         #error_C.append(np.linalg.norm(C_t - C_star, ord='fro'))
         error_total.append(np.linalg.norm(x@x.T - X_true_padded@X_true_padded.T, ord='fro'))
         losses.append(h(c(x)))
-        # Update x
-        # grad_c * v is equivalent to jacob_c.T @ v (subgradient of the composition f := h ◦ c)
-        x_flat = x_flat - gamma * preconditionned_g
-        x = x_flat.reshape(n,r)
         
+        x = x - gamma*preconditionned_g
+    
 
     return x, losses, error_A, error_B, error_C, error_total
 
 
 
+
+
+
+def zhang(x0, T,A,y_true, lambdaa=0.1):
+    pass
+    
 
 
 

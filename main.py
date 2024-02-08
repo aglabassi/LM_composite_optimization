@@ -18,7 +18,7 @@ def experiment_1(r_true, ranks, n, T, cond_number, init_radius_ratio, lambdaa, l
     
     X_true = generate_matrix_with_condition(n, r_true, cond_number)
     M_true = X_true @ X_true.T
-    A = create_rip_transform(n, d) 
+    A,A_adj = create_rip_transform(n, d) 
     y_true = A(M_true)
     
     
@@ -38,11 +38,11 @@ def experiment_1(r_true, ranks, n, T, cond_number, init_radius_ratio, lambdaa, l
         X_true_padded = np.hstack((X_true, padding))
         
         
-        _, losses, errors_A, errors_B, errors_C,_ = matrix_recovery(x0, T, 0, U_star, X_true_padded, lambdaa, r_true, A, y_true, damek=False, loss_ord=2)
+        _, losses, errors_A, errors_B, errors_C,_ = matrix_recovery(x0, T, 0, U_star, X_true_padded, lambdaa, r_true, A, A_adj, y_true, damek=False, loss_ord=2)
         
         losses_scaled.append(losses)
         
-        _, losses, errors_A, errors_B, errors_C,_ = matrix_recovery(x0, T, 0, U_star, X_true_padded, lambdaa, r_true, A, y_true, damek=True, loss_ord=2)
+        _, losses, errors_A, errors_B, errors_C,_ = matrix_recovery(x0, T, 0, U_star, X_true_padded, lambdaa, r_true, A, A_adj, y_true, damek=True, loss_ord=2)
         
         losses_gnp.append(losses)
         
@@ -59,7 +59,7 @@ def experiment_2(r_true, cond_numbers, n, T, init_radius_ratio, loss_ord):
     
     d = 10*n*r_true
     
-    A = create_rip_transform(n, d) 
+    A,A_adj = create_rip_transform(n, d) 
     
     
 
@@ -81,11 +81,11 @@ def experiment_2(r_true, cond_numbers, n, T, init_radius_ratio, loss_ord):
         X_true_padded = np.hstack((X_true, padding))
         
         
-        _, losses, errors_A, errors_B, errors_C,_ = matrix_recovery(x0, T, 0, U_star, X_true_padded, lambdaa, r_true, A, y_true, damek=False, loss_ord=2)
+        _, losses, errors_A, errors_B, errors_C,_ = matrix_recovery(x0, T, 0, U_star, X_true_padded, lambdaa, r_true, A, A_adj, y_true, damek=False, loss_ord=2)
         
         losses_scaled.append(losses)
         
-        _, losses, errors_A, errors_B, errors_C,_ = matrix_recovery(x0, T, 0, U_star, X_true_padded, lambdaa, r_true, A, y_true, damek=True, loss_ord=2)
+        _, losses, errors_A, errors_B, errors_C,_ = matrix_recovery(x0, T, 0, U_star, X_true_padded, lambdaa, r_true, A, A_adj, y_true, damek=True, loss_ord=2)
         
         losses_gnp.append(losses)
     
@@ -110,23 +110,23 @@ def experiment_2(r_true, cond_numbers, n, T, init_radius_ratio, loss_ord):
 
 if __name__ == "__main__":
     
-    loss_ord = 2
-    
+    loss_ord = 1
+
     r_true = 3
 
     
     
-    T = 100
-    n = 50
-    lambdaa  = 0
+    T = 200
+    n = 30
+    lambdaa  = 0.000000001
     init_radius_ratio = 0.1
-    cond_number = 3
-    ranks_test = [3,6, 10]
+    cond_number = 10
+    ranks_test = [3, 15]
     cond_number_tests = [1,100,1000]
     
     experiment_1(r_true, ranks_test, n, T, cond_number, init_radius_ratio, lambdaa, loss_ord)
       
     
-    experiment_2(r_true, cond_number_tests, n, T, init_radius_ratio, loss_ord)
+    #experiment_2(r_true, cond_number_tests, n, T, init_radius_ratio, loss_ord)
     
     
