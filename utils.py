@@ -309,7 +309,9 @@ def matrix_recovery(x0, T, h_star, U_star, X_true_padded, lambdaa, r_true, A, A_
                 
             elif loss_ord == 1:
                 preconditionned_g = A_adj(( np.sign(A(x@x.T) - y_true)) ) @ x @ np.linalg.inv(x.T@x + lambdaa*np.eye(r,r))
+            
                 
+            #TODO : find good poliak updates
             preconditionned_g= preconditionned_g.reshape(-1)
             aux = (jacob_c @ preconditionned_g)
             proj_norm_squared = np.dot(aux , aux)
@@ -320,9 +322,7 @@ def matrix_recovery(x0, T, h_star, U_star, X_true_padded, lambdaa, r_true, A, A_
             
                     
         gamma = (h(c(x)) - h_star) / proj_norm_squared if loss_ord == 1 else 0.000001
-        
-        #ZHANG FORM
-        
+          
 
         #proj_norm_squared = np.dot(preconditioned_v, preconditioned_v)
 

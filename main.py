@@ -11,7 +11,7 @@ from utils import create_rip_transform, generate_matrix_with_condition, compact_
 import numpy as np
 
 
-#P
+#multiple rank,s one cond number
 def experiment_1(r_true, ranks, n, T, cond_number, init_radius_ratio, lambdaa, loss_ord):
         
     d = 10*n*r_true
@@ -29,7 +29,7 @@ def experiment_1(r_true, ranks, n, T, cond_number, init_radius_ratio, lambdaa, l
     
     
     losses_scaled = []
-    losses_gnp = []
+    losses_gn = []
     for r in ranks:
         
         x0 = gen_random_point_in_neighborhood(X_true, radius, r, r_true)
@@ -44,17 +44,17 @@ def experiment_1(r_true, ranks, n, T, cond_number, init_radius_ratio, lambdaa, l
         
         _, losses, errors_A, errors_B, errors_C,_ = matrix_recovery(x0, T, 0, U_star, X_true_padded, lambdaa, r_true, A, A_adj, y_true, damek=True, loss_ord=2)
         
-        losses_gnp.append(losses)
+        losses_gn.append(losses)
         
     
     
-    plot_multiple_metrics_log_scale(losses_scaled+losses_gnp, [f'r={r}, scaled' for r in ranks] + [f'r={r}, gnp' for r in ranks], 
-                                    ['blue']*len(losses_scaled) + ["red"]*len(losses_gnp),
-                                    [f'{"-"*(i+1) if i < 2 else "-."}' for i in range(len(losses_scaled))] + [f'{"-"*(i+1) if i < 2 else "-."}' for i in range(len(losses_gnp))], 
+    plot_multiple_metrics_log_scale(losses_scaled+losses_gn, [f'r={r}, scaled' for r in ranks] + [f'r={r}, damek' for r in ranks], 
+                                    ['blue']*len(losses_scaled) + ["red"]*len(losses_gn),
+                                    [f'{"-"*(i+1) if i < 2 else "-."}' for i in range(len(losses_scaled))] + [f'{"-"*(i+1) if i < 2 else "-."}' for i in range(len(losses_gn))], 
                                     f'Loss function for Matrix Recovery, cond_number = {cond_number}, lambda={lambdaa}, loss=l{loss_ord}', xlabel='Iteration', ylabel='Loss', logscale=True)
 
 
-
+#multiple cond numbers, single rank
 def experiment_2(r_true, cond_numbers, n, T, init_radius_ratio, loss_ord):
     
     d = 10*n*r_true
@@ -65,7 +65,7 @@ def experiment_2(r_true, cond_numbers, n, T, init_radius_ratio, loss_ord):
 
     
     losses_scaled = []
-    losses_gnp = []
+    losses_gn = []
     for cond_number in cond_numbers:
         X_true = generate_matrix_with_condition(n, r_true, cond_number)
         D_star_sq, U_star = compact_eigendecomposition(X_true@X_true.T)
@@ -87,30 +87,33 @@ def experiment_2(r_true, cond_numbers, n, T, init_radius_ratio, loss_ord):
         
         _, losses, errors_A, errors_B, errors_C,_ = matrix_recovery(x0, T, 0, U_star, X_true_padded, lambdaa, r_true, A, A_adj, y_true, damek=True, loss_ord=2)
         
-        losses_gnp.append(losses)
+        losses_gn.append(losses)
     
     #normalize losses: TODO make faster using np
-    # normalizor = min( [ loss[0] for loss in losses_gnp])
-    # for i,l in enumerate(losses_gnp):
+    # normalizor = min( [ loss[0] for loss in losses_gn])
+    # for i,l in enumerate(losses_gn):
     #     for j in range(len(l)):
-    #         losses_gnp[i][j] = np.exp(  np.log(losses_gnp[i][j])  - np.log(losses_gnp[i][0])  - np.log(normalizor))
+    #         losses_gn[i][j] = np.exp(  np.log(losses_gn[i][j])  - np.log(losses_gn[i][0])  - np.log(normalizor))
     #         losses_scaled[i][j] = np.exp(  np.log(losses_scaled[i][j])  - np.log(losses_scaled[i][0])  - np.log(normalizor))
     
     
         
     
     
-    plot_multiple_metrics_log_scale(losses_scaled+losses_gnp, [f'cond_n={c}, scaled' for c in cond_numbers] + [f'cond_n={c}, gnp' for c in cond_numbers], 
-                                    ['blue']*len(losses_scaled) + ["red"]*len(losses_gnp),
-                                    [f'{"-"*(i+1) if i < 2 else "-."}' for i in range(len(losses_scaled))] + [f'{"-"*(i+1) if i < 2 else "-."}' for i in range(len(losses_gnp))], 
+    plot_multiple_metrics_log_scale(losses_scaled+losses_gn, [f'cond_n={c}, scaled' for c in cond_numbers] + [f'cond_n={c}, gn' for c in cond_numbers], 
+                                    ['blue']*len(losses_scaled) + ["red"]*len(losses_gn),
+                                    [f'{"-"*(i+1) if i < 2 else "-."}' for i in range(len(losses_scaled))] + [f'{"-"*(i+1) if i < 2 else "-."}' for i in range(len(losses_gn))], 
                                     f'Loss function for Matrix Recovery, r_true = {r_true}, lambda=0, loss=l{loss_ord}', xlabel='Iteration', ylabel='Loss', logscale=True)
 
 
     
+    
+    
+    
 
 if __name__ == "__main__":
     
-    loss_ord = 1
+    loss_ord = 2 #L1 or l2 loss. If L2: smooth optimization regime with constant stepsize. If L1: nonsmooth optimization with poliak 
 
     r_true = 3
 
