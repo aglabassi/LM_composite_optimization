@@ -1,0 +1,142 @@
+\documentclass{article}
+\usepackage{amsmath}
+\usepackage{amsthm}
+\usepackage{graphicx}
+\usepackage{amsfonts}
+\usepackage{mathtools} 
+\usepackage{enumitem} 
+
+
+\usepackage{xcolor} 
+\usepackage{natbib} % Include this package to use the bibliography
+\usepackage{hyperref} % Add this line to use the hyperref package
+
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+
+
+
+\definecolor{darkgreen}{RGB}{0,181,90}
+
+% Hyperlink setup
+\hypersetup{
+    colorlinks=true, % Set to true to enable coloring links
+    linkcolor=blue, % Color of internal links
+    filecolor=magenta, % Color of file links
+    urlcolor=cyan, % Color of external URLs
+    citecolor=darkgreen % Color of citations
+}
+
+% Define the lemma
+\newtheorem{lemma}{Lemma}
+\newcommand{\pinv}[1]{#1^{\dagger}}
+
+\begin{document}
+
+
+\section{GNP for Matrix Recovery}
+First let's introduce some proprety about the pseudoinverse.
+
+For $M \in \mathbb{K}^{m \times n}$, a pseudoinverse of $M$ is defined as a matrix $M^\dagger \in \mathbb{K}^{n \times m}$ satisfying all of the following four criteria (C1-C4), known as the Moore–Penrose conditions:
+
+\begin{enumerate}[label=c\arabic*),ref=c\arabic*, start=0]
+    \item \label{C0} $(\pinv{M})^* = \pinv{(M^*)} = M^{* \dagger}$
+    \item \label{C1} \(M\pinv{M}\) need not be the general identity matrix, but it maps all column vectors of \(M\) to themselves:
+    \[M\pinv{M}M = M.\]
+    
+    \item \label{C2} \(\pinv{M}\) acts like a weak inverse:
+    \[\pinv{M}M\pinv{M} = \pinv{M}.\]
+    
+    \item \label{C3} \(M\pinv{M}\) is Hermitian:
+    \[(M\pinv{M})^{*} = M\pinv{M}.\]
+    
+    \item \label{C4} \(\pinv{M}M\) is also Hermitian:
+    \[(\pinv{M}M)^{*} = \pinv{M}M.\]
+\end{enumerate}
+The pseudo-inverse solves the least-square problems, i.e., 
+$$
+\text{argmin}_{x \in \mathbb{R}^n} \| Ax - b \|_2^2 =A 
+$$
+
+% State the lemma
+\begin{lemma}
+\label{l1}
+Let A be a matrix, $A^*$ the conjugate transpose of $A$, $A^\dagger$ the pseudo-inverse of $A$. Then the following holds:
+
+$$
+(A^* A)^\dagger = A^\dagger (A^*)^\dagger.
+$$
+\end{lemma}
+
+% Provide the proof
+\begin{proof}
+It is sufficient to show that $(A^* A)^\dagger$ satisfie condition 1 of the above. We have :
+
+$$
+(A^* A) (A^\dagger A^{* \dagger} ) = A^* \underbrace{A A^{\dagger}}_{=^{\ref{C3}}(AA^{\dagger})^* =^{\ref{C0}} A^{* \dagger} A^* } A^{* \dagger}  = A^* A^{* \dagger} A^* A^{* \dagger}  = ^{\ref{C1}} A^* {A^{* \dagger}}
+$$.
+
+
+Right multiply this by $A^* A$ to verify $\ref{C1}$ is satisfied for $M=A^* A$:
+
+$$
+ \underbrace{A^* A^{* \dagger} A^*}_{=^{\ref{C1}} A^*} A = A^* A. 
+$$
+\end{proof}
+
+
+
+
+Consider the following
+
+$$
+\min_{x\in \mathbb{R}^{nr} } f(x):= h(c(x)).
+
+$$
+
+$c: \mathbb{R}^{nr} \to \mathbb{R}^{nn}$, $h:\mathbb{R}^{nn} \to \mathbb{R}$
+
+
+Assume $c$ is differentiable with $\nabla c(x)$ the $\mathbb{R}^{nn \times nr}$ jacombian of $c(x)$. Then by the chain rule, for $v(x) \in \partial h ( c(x)) \subseteq \mathbb{R}^{nn}$,  we have $g(x):= \nabla c(x)^{\top} v  \in \partial f(x) \subseteq \mathbb{R}^{nr}$. The Gauss Newton precontionner for $g$ is 
+$$
+(\nabla c(x)^\top \nabla c(x))^{\dagger} g(x) =^{L\ref{l1}}   \nabla c(x)^\dagger \underbrace{\nabla c(x)^{\top \dagger } \nabla c(x)^\top}_{ = (\nabla c(x) \nabla c(x)^\dagger)^\top =^{\ref{C3}} \nabla c(x) \nabla c(x)^\dagger  } v(x)  = \nabla c(x)^\dagger \nabla c(x) \nabla c(x)^\dagger =^{\ref{C2}} \nabla c(x)^\dagger v(x).
+$$
+
+
+For the matrix recovery problem,  scaled method are the most popular. We want to verify if these are equivalent to GNP as described above, i.e., if
+
+
+$$
+\texttt{unvec}\big[(\nabla c^\top \nabla c)^\dagger g  \big]  = \texttt{unvec}(g) \cdot (\texttt{unvec}(x)^\top \texttt{unvec}(x))^{-1}
+$$
+Apply $\texttt{vec}$ everywhere:
+
+$$
+\big[(\nabla c^\top \nabla c)^\dagger g  \big]  = \texttt{vec} \big[ \texttt{unvec}(g) \cdot (\texttt{unvec}(x)^\top \texttt{unvec}(x))^{-1} \big ]
+$$
+Using $\texttt{vec}(AB) = (B^{\mathrm{T}} \otimes I_{n})\texttt{vec}(A)$ for $A=\texttt{unvec}(g), B=(\texttt{unvec}(x)^\top \texttt{unvec}(x))^{-1}$, we want to check if:
+$$
+(\nabla c^\top \nabla c)^\dagger  g = ((\texttt{unvec}(x)^\top \texttt{unvec}(x))^{-1}\otimes I_{n}) g
+$$
+
+Assume the two preconditionners are equal. Taking pseudoinverse of the two (pseudoinverse of pseudoinverse cancels, pseudoinverse of Kronecker product is Kronecker product of pseudo-inverses \cite{Langville2004Kronecker}, pseudoinverse of inverse cancels), we have :
+
+$$
+\nabla c^\top \nabla c = ((\texttt{unvec}(x)^\top \texttt{unvec}(x))^{-1}\otimes I_{n}).
+$$
+
+which clearly does not hold. 
+
+
+\bibliographystyle{plain}
+\bibliography{ref}
+
+
+\end{document}
+
+
+
+
+
+
+\end{document}
