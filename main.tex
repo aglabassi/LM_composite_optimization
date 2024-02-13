@@ -106,11 +106,11 @@ Assume $c$ is differentiable with $\nabla c(x)$ the $\mathbb{R}^{nn \times nr}$ 
 \]
 
 
-For the matrix recovery problem,  scaled method are the most popular \cite{Tong_2021,tong2021accelerating}. We want to verify if these are equivalent to GNP as described above, i.e., if
+For the matrix recovery problem,  scaled methods preconditionners, which corresponds to the quasi-newton preconditioner with diagonal Hessian's block for the matrix factorization problem \cite{Tong_smooth}, an easier problem then matrix recovery, are the most popular \cite{Tong_smooth,Tong_nonsmooth}. This preconditioner works well in practice for related matrix problems, however, it does not adapt to problem structure since it has been tailored for the factorization problem. A more general preconditioner is the Gauss Newton's one which better approximate the true second-order curvature information required for effective preconditioning. Let's start by verifying Gauss Newton preconditioner for matrix recovery does not reduce to scaled preconditioner, i.e., we want to see if :
 
 
 $$
-\texttt{unvec}\big[(\nabla c^\top \nabla c)^\dagger g  \big]  = \texttt{unvec}(g) \cdot (\texttt{unvec}(x)^\top \texttt{unvec}(x))^{-1}
+\texttt{unvec}\big[(\nabla c^\top \nabla c)^\dagger g  \big]  = \texttt{unvec}(g) \cdot (\texttt{unvec}(x)^\top \texttt{unvec}(x))^{-1}.
 $$
 Apply $\texttt{vec}$ everywhere:
 
@@ -125,17 +125,31 @@ $$
 Assume the two preconditionners are equal. Taking pseudoinverse of the two (pseudoinverse of pseudoinverse cancels, pseudoinverse of Kronecker product is Kronecker product of pseudo-inverses \cite{Langville2004Kronecker}, pseudoinverse of inverse cancels), we have :
 
 $$
-\nabla c^\top \nabla c = ((\texttt{unvec}(x)^\top \texttt{unvec}(x))^{-1}\otimes I_{n}) = (\nabla c^\top \nabla c)^\dagger.
+\nabla c^\top \nabla c = ((\texttt{unvec}(x)^\top \texttt{unvec}(x))\otimes I_{n}).
 $$
 
-which should not hold for $\nabla c$. Let $B=\nabla c^\top \nabla c$. Then we should have $BBB-B=0$. But for $n=2,r=1, x= [1,1]$, we have
+which should not hold for $\nabla c$. Let $A=\nabla c^\top \nabla c, B =((\texttt{unvec}(x)^\top \texttt{unvec}(x))\otimes I_{n})$. For $n=2,r=1, x= [1,1]$, we have
 $$
-BBB - B =    \left[ {\begin{array}{cc}
-   282 & 222 \\
-   222 & 282 \\
+A - B =    \left[ {\begin{array}{cc}
+   4 & 2 \\
+   2 & 4 \\
   \end{array} } \right].
 $$
 
+
+
+\subsection{Making GNP robust to overparametrization}
+In overparametrization setting, as we get closer to $x^*$, scaled's precondionner $P_{scaled}:=(\texttt{unvec}(x)^\top \texttt{unvec}(x))\otimes I_{n}$ may be almost singular.  \cite{xu2023power} propose to add a term $+\lambda I_{r}$ to force invertability: 
+$$P_{scaled(\lambda)}:=(\texttt{unvec}(x)^\top \texttt{unvec}(x) + \lambda I_r)\otimes I_{n} \overset{\text{\cite{Langville2004Kronecker}}}{=} (\texttt{unvec}(x)^\top \texttt{unvec}(x) ) \otimes I_n + \lambda I_{nr}
+$$
+As $\lambda \to \infty$,  we recover classic GD (i.e. no conditionning at all) as the diagonal dominates, whereas $\lambda = 0$ we recover scaled method which may cause numerical issue when performing inversion. Now let's observe Gauss Newton preconditionner:
+$$
+\nabla c(x)^\top \nabla c(x).
+$$
+This matrix is in general not invertible, and therefore this is why the pseudo-inverse is taken. 
+
+
+\subsection{}
 
 
 \bibliographystyle{plain}
