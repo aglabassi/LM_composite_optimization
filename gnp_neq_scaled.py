@@ -30,14 +30,11 @@ J = derive_by_array(vec_XXT, x)
 
 J_matrix = np.transpose(np.array(J).squeeze())
 
-# Now you can safely compute J.T * J
-C = Matrix(J_matrix.T @ J_matrix)
+B = Matrix(J_matrix.T @ J_matrix)
 
-# Compute C * C * C
-CCC = C * C * C
-
-# This should give 0.
-CCC_minus_C = (CCC-C).applyfunc(lambda x: x.simplify())
+C = np.kron(x.T * x, np.eye(2))
 
 
-print("Product CCC minus C simplified:\n", CCC_minus_C.subs([(x1,1), (x2,1)]))
+B_minus_C = B - C
+
+print("B-C:\n", B_minus_C.subs([(x1,1), (x2,1)]))
