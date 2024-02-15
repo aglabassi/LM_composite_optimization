@@ -35,6 +35,4 @@ B = Matrix(J_matrix.T @ J_matrix)
 C = np.kron(x.T * x, np.eye(2))
 
 
-B_minus_C = B - C
 
-print("B-C:\n", B_minus_C.subs([(x1,1), (x2,1)]))
