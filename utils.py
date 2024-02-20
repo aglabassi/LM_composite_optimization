@@ -122,8 +122,7 @@ def gen_random_point_in_neighborhood(X_true, radius, r, r_true):
     random_points = X_padded + directions * distances[:, np.newaxis]
     
     
-    #random_points = np.random.normal(0, 1, (n, r))*10**-15
-    
+    random_points = np.random.normal(0, 1/n, (n, r))*10**-1
     return random_points
 
 

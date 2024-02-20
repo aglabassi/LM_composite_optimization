@@ -167,13 +167,13 @@ if __name__ == "__main__":
 
     
     
-    T = 200
+    T = 1000
     n = 30
-    lambdaa  = 10**-9
+    lambdaa  = 0.000000001
     init_radius_ratio = 0.1
     cond_number = 10
     ranks_test = [3, 20]
-    cond_numbers_test = [1,1000]
+    cond_numbers_test = [1000]
     
     experiment_3(r_true, ranks_test, cond_numbers_test, n, T, init_radius_ratio, loss_ord)
     
