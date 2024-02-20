@@ -143,11 +143,11 @@ def experiment_3(r_true, ranks, cond_numbers, n, T, init_radius_ratio, loss_ord)
             X_true_padded = np.hstack((X_true, padding))
             
             
-            _, losses, errors_A, errors_B, errors_C,_ = matrix_recovery(x0, T, 0, U_star, X_true_padded, lambdaa, r_true, A, A_adj, y_true, damek=False, loss_ord=loss_ord)
+            _, losses, errors_A, errors_B, errors_C,_ = matrix_recovery(x0, T, 0, U_star, X_true_padded, lambdaa, r_true, A, A_adj, y_true, cond_number, loss_ord, False)
             
             losses_scaled.append(losses)
             
-            _, losses, errors_A, errors_B, errors_C,_ = matrix_recovery(x0, T, 0, U_star, X_true_padded, lambdaa, r_true, A, A_adj, y_true, damek=True, loss_ord=loss_ord)
+            _, losses, errors_A, errors_B, errors_C,_ = matrix_recovery(x0, T, 0, U_star, X_true_padded, lambdaa, r_true, A, A_adj, y_true,cond_number, loss_ord, True)
             
             losses_gn.append(losses)
             
@@ -169,11 +169,11 @@ if __name__ == "__main__":
     
     T = 200
     n = 30
-    lambdaa  = 10**-6
+    lambdaa  = 10**-9
     init_radius_ratio = 0.1
     cond_number = 10
     ranks_test = [3, 20]
-    cond_numbers_test = [1,100]
+    cond_numbers_test = [1,1000]
     
     experiment_3(r_true, ranks_test, cond_numbers_test, n, T, init_radius_ratio, loss_ord)
     

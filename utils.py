@@ -273,7 +273,7 @@ def create_rip_transform(n, d):
 
 
 
-def matrix_recovery(x0, T, h_star, U_star, X_true_padded, lambdaa, r_true, A, A_adj, y_true, loss_ord=1, damek=False):
+def matrix_recovery(x0, T, h_star, U_star, X_true_padded, lambdaa, r_true, A, A_adj, y_true, cn, loss_ord, damek):
     
     def c(x):
         return x @ x.T 
@@ -353,14 +353,14 @@ def matrix_recovery(x0, T, h_star, U_star, X_true_padded, lambdaa, r_true, A, A_
         
         #subdifferential of h(c(x)) w.r.t x
         g = jacob_c.T @ v
-        
-
         if damek:
             tmp = jacob_c.T.shape[0]
             preconditionned_g, _,_,_ = np.linalg.lstsq(jacob_c.T @ jacob_c + lambdaa*np.eye(tmp,tmp), g, rcond=None)
             aux = (jacob_c @ preconditionned_g)
             proj_norm_squared = np.dot(aux , aux)
             preconditionned_g = preconditionned_g.reshape(n,r)
+            #preconditionned_g = g.reshape(n,r)
+
             
         else:
             if loss_ord == 2:
@@ -368,7 +368,7 @@ def matrix_recovery(x0, T, h_star, U_star, X_true_padded, lambdaa, r_true, A, A_
                 
             elif loss_ord == 1:
                 preconditionned_g = A_adj(( np.sign(A(x@x.T) - y_true)) ) @ x @ np.linalg.inv(x.T@x + lambdaa*np.eye(r,r))
-            
+                #preconditionned_g = A_adj(( np.sign(A(x@x.T) - y_true)) ) @ x
                 
             #TODO : find good poliak updates
             preconditionned_g= preconditionned_g.reshape(-1)
@@ -388,6 +388,8 @@ def matrix_recovery(x0, T, h_star, U_star, X_true_padded, lambdaa, r_true, A, A_
         # Update  polyak step size gamma
         
         print('Iteration number: ', t)
+        print(f'Method: {"gn" if damek else "scaled"}')
+        print(f'Condition number: {cn}')
         print("r^*=", r_true)
         print("r=", r)
         print('h(c(x)) =', h(c(x)))
