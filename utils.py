@@ -9,6 +9,7 @@ Created on Wed Jan 17 10:53:34 2024
 import numpy as np
 import matplotlib.pyplot as plt
 import itertools
+from scipy.linalg import sqrtm
 
 def plot_losses_with_styles(losses_scaled, losses_gn, cond_numbers, ranks, r_true, loss_ord, lambdaa, num_dots=20):
     # Define color palettes for 'scaled' (blue family) and 'gn' (red family)
@@ -119,7 +120,7 @@ def gen_random_point_in_neighborhood(X_true, radius, r, r_true):
     distances = np.random.uniform(0, 1, n) ** (1/r) * radius
     
     # Step 3: Scale the directions by the distances (need to reshape distances for broadcasting)
-    random_points = X_padded + directions * distances[:, np.newaxis]
+    #random_points = X_padded + directions * distances[:, np.newaxis]
     
     
     random_points = np.random.normal(0, 1/n, (n, r))*10**-1
@@ -359,6 +360,8 @@ def matrix_recovery(x0, T, h_star, U_star, X_true_padded, lambdaa, r_true, A, A_
             proj_norm_squared = np.dot(aux , aux)
             preconditionned_g = preconditionned_g.reshape(n,r)
             #preconditionned_g = g.reshape(n,r)
+            gamma = (h(c(x)) - h_star) / proj_norm_squared if loss_ord == 1 else 0.000001
+              
 
             
         else:
@@ -367,19 +370,13 @@ def matrix_recovery(x0, T, h_star, U_star, X_true_padded, lambdaa, r_true, A, A_
                 
             elif loss_ord == 1:
                 preconditionned_g = A_adj(( np.sign(A(x@x.T) - y_true)) ) @ x @ np.linalg.inv(x.T@x + lambdaa*np.eye(r,r))
-                #preconditionned_g = A_adj(( np.sign(A(x@x.T) - y_true)) ) @ x
+                preconditionned_g = preconditionned_g.reshape(-1)
+                aux = (jacob_c @ preconditionned_g)
+                proj_norm_squared = np.dot(aux , aux)
+                preconditionned_g = preconditionned_g.reshape(n,r)
+                proj_norm_squared = np.dot(aux , aux)
                 
-            #TODO : find good poliak updates
-            preconditionned_g= preconditionned_g.reshape(-1)
-            aux = (jacob_c @ preconditionned_g)
-            proj_norm_squared = np.dot(aux , aux)
-            preconditionned_g  = preconditionned_g.reshape(n,r)
-            
-                
-                
-            
-                    
-        gamma = (h(c(x)) - h_star) / proj_norm_squared if loss_ord == 1 else 0.000001
+            gamma = (h(c(x)) - h_star) / proj_norm_squared if loss_ord == 1 else 0.000001
           
 
         #proj_norm_squared = np.dot(preconditioned_v, preconditioned_v)
