@@ -1,3 +1,4 @@
+
 \documentclass{article}
 \usepackage{amsmath}
 \usepackage{amsthm}
@@ -13,8 +14,14 @@
 
 \usepackage{algorithm}
 \usepackage{algpseudocode}
+\newtheorem{theorem}{Theorem}
+\newtheorem{assumption}{Assumption}
+\newtheorem{lemma}{Lemma}
+\newtheorem{proposition}{Proposition}
 
+\newtheorem{observation}{Observation}
 
+\DeclareMathOperator*{\argmin}{arg\,min}
 
 \definecolor{darkgreen}{RGB}{0,181,90}
 
@@ -28,13 +35,12 @@
 }
 
 % Define the lemma
-\newtheorem{lemma}{Lemma}
 \newcommand{\pinv}[1]{#1^{\dagger}}
 
 \begin{document}
 
 
-\section{GNP for Matrix Recovery}
+\section{Gauss Newton Preconditionner for Matrix Recovery}
 First let's introduce some proprety about the pseudoinverse.
 
 For $M \in \mathbb{K}^{m \times n}$, a pseudoinverse of $M$ is defined as a matrix $M^\dagger \in \mathbb{K}^{n \times m}$ satisfying all of the following four criteria (C1-C4), known as the Moore–Penrose conditions:
@@ -122,35 +128,58 @@ $$
 (\nabla c^\top \nabla c)^\dagger  g = ((\texttt{unvec}(x)^\top \texttt{unvec}(x))^{-1}\otimes I_{n}) g
 $$
 
-Assume the two preconditionners are equal. Taking pseudoinverse of the two (pseudoinverse of pseudoinverse cancels, pseudoinverse of Kronecker product is Kronecker product of pseudo-inverses \cite{Langville2004Kronecker}, pseudoinverse of inverse cancels), we have :
-
-$$
-\nabla c^\top \nabla c = ((\texttt{unvec}(x)^\top \texttt{unvec}(x))\otimes I_{n}).
-$$
-
-which should not hold for $\nabla c$. Let $A=\nabla c^\top \nabla c, B =((\texttt{unvec}(x)^\top \texttt{unvec}(x))\otimes I_{n})$. For $n=2,r=1, x= [1,1]$, we have
-$$
-A - B =    \left[ {\begin{array}{cc}
-   4 & 2 \\
-   2 & 4 \\
-  \end{array} } \right].
-$$
 
 
-
-\subsection{Making GNP robust to overparametrization}
-In overparametrization setting, as we get closer to $x^*$, scaled's precondionner $P_{scaled}:=(\texttt{unvec}(x)^\top \texttt{unvec}(x))\otimes I_{n}$ may be almost singular.  \cite{xu2023power} propose to add a term $+\lambda I_{r}$ to force invertability: 
-$$P_{scaled(\lambda)}:=(\texttt{unvec}(x)^\top \texttt{unvec}(x) + \lambda I_r)\otimes I_{n} \overset{\text{\cite{Langville2004Kronecker}}}{=} (\texttt{unvec}(x)^\top \texttt{unvec}(x) ) \otimes I_n + \lambda I_{nr}
+\subsection{Making Gauss Newton robust to overparametrization}
+In overparametrization setting, as we get closer to $x^*$, scaled's precondionner $P_{scaled}:=(\texttt{unvec}(x)^\top \texttt{unvec}(x))\otimes I_{n}$ may be almost singular.  \cite{xu2023power} propose to add a term $+\lambda I_{r}$ to make it less singular: $$
+(\texttt{unvec}(x)^\top \texttt{unvec}(x) + \lambda I_r)\otimes I_{n} \overset{\text{\cite{Langville2004Kronecker}}}{=} (\texttt{unvec}(x)^\top \texttt{unvec}(x) ) \otimes I_n + \lambda I_{nr}
 $$
-As $\lambda \to \infty$,  we recover classic GD (i.e. no conditionning at all) as the diagonal dominates, whereas $\lambda = 0$ we recover scaled method which may cause numerical issue when performing inversion. Now let's observe Gauss Newton preconditionner:
+As $\lambda \to \infty$,  we recover classic GD (i.e. no conditionning at all) as the diagonal dominates, whereas $\lambda = 0$ we recover scaled method. Now let's observe Gauss Newton preconditionner:
 $$
 \nabla c(x)^\top \nabla c(x).
 $$
-This matrix is in general not invertible, and therefore this is why the pseudo-inverse is taken. 
+This matrix is in general not invertible.
 
 
-\subsection{}
+\begin{proposition} (Mateo)
+    Let $G \in \mathbb{R}^{nxr}$ be gradient of $f(X)$. Denote $\nabla c(X)^\top \nabla c(X)$ as the linear transfrormation resulting from the jacobian of $c$. Then
+    $$
+     \nabla c(X)^\top \nabla c(X) G = XG^\top X + GX^\top X. 
+    $$ Moreover, for the matrix factorization problem $\min_{X_l X,R} h(c'(X_l,X_r)) $ where $c'(X_l,X_r) = X_l X_r^\top$, we have  
+    $$
+    \nabla c'(X)^\top \nabla c'(X) G = GX^\top X. 
+    $$
+    
+\end{proposition}
+\begin{proof}
+    Observe by definition of the jacobian for a direction matrix $V$: $$\nabla C(X) \cdot  V =  \lim_{t\to 0}  \frac{(X+tV)(X+tV)^\top - XX^\top   }{t} = VX^\top + XV^\top$$.
+    Let's observe how the transpose acts on some $W$ under the Frebinius inner product
+\begin{align*}
+    \langle \nabla C^\top V, W \rangle & = \text{tr}(V^\top \nabla C(X) W) \\
+    & = \text{tr}( V^\top (WX^\top + XW^\top)) \\
+    & = \text{tr}(X^\top V^\top W) + \text{tr}(V^\top X W^\top) \\
+    & = \langle V X, W \rangle + \langle V^\top X, W \rangle \\
+    & = \langle VX + V^\top X, W \rangle \\
+    & \implies \langle \nabla C^\top V -  (VX + V^\top X), W \rangle = 0
+\end{align*}
 
+    Since $W$ was arbitrary, the above holds iff $ C^\top V = (V X + V^\top X)$. Now for symmetric $V= \nabla C(X) G = GX^\top + X G^\top$, we conclude.
+\end{proof}
+
+
+\begin{observation}
+For the matrix factorization problem, Gauss Newton precondionner is equivalent to the scaled one. When $X^TX$ is invertible, the inverse acts as follow
+$$
+[] \nabla c'(X)^\top \nabla c'(X) ]^{\dagger} G = \argmin_{D} \| \nabla c'(X)^\top \nabla c'(X) D - G \| = \argmin_{D} \| DX^\top X - G \|  = G(X^TX)^{-1}
+$$
+\end{observation}
+
+Now for $\nabla c(X)^\top \nabla c(X)$, the following optimization problem is convex thus admit a stationary point 
+$$
+\min_{D} \| \nabla c'(X)^\top \nabla c'(X) D - G \|^2
+$$
+
+It gradient evaluated at $G(X^TX)^{-1}$ is not stationnary point. Therefore, scaled and  GN are not equivalent for matrix recovery problem. Scaled method is a shortcut inspired from matrix factorization problem.
 
 \bibliographystyle{plain}
 \bibliography{ref}
