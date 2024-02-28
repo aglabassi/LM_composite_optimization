@@ -40,7 +40,7 @@
 \begin{document}
 
 
-\section{Gauss Newton Preconditionner for Matrix Recovery}
+\section{Basic Facts About PseudoInverse}
 First let's introduce some proprety about the pseudoinverse.
 
 For $M \in \mathbb{K}^{m \times n}$, a pseudoinverse of $M$ is defined as a matrix $M^\dagger \in \mathbb{K}^{n \times m}$ satisfying all of the following four criteria (C1-C4), known as the Moore–Penrose conditions:
@@ -92,49 +92,44 @@ $$
 
 
 
-\subsection{GNP is not equivalent to Scaled Subgradient}
+\section{Scaled Subgradient Method}
 
-
-
-Consider the following
+Consider the problem
 
 $$
-\min_{x\in \mathbb{R}^{nr} } f(x):= h(c(x)).
+\min_{X \in \mathbb{R}^{n\times r}} h(c(X))
+$$
+where $c:\mathbb{R}^{n\times r} \to \mathbb{R}^{n\times n} $ $h:\mathbb{R}^{n\times n} \to \mathbb{R}$
+Let's express scaled preconditionner in matrix-vector form. Recall the update direction in matrix-matrix form  for scaled GD:
 
 $$
+G \cdot (X^\top X + \lambda I_r)^{-1},
+$$
+where $G$ a subgradient of $h(c(X))$ with respect to matrix $X$.
+Apply $\texttt{vec}$, denote $g=vec(G)$. Using $\texttt{vec}(AB) = (B^{\mathrm{T}} \otimes I_{n})\texttt{vec}(A)$, we have:
 
-with $c: \mathbb{R}^{nr} \to \mathbb{R}^{nn}$, $h:\mathbb{R}^{nn} \to \mathbb{R}$.
+\begin{align*}
+\text{vec} \big[ G \cdot (X^\top X + \lambda I_r)^{-1} \big] &= ((X^\top X + \lambda I_r)^{-1}\otimes I_{n}) g \\
+&= ((X^\top X + \lambda I_r) \otimes I_{n})^{-1} g \\
+&\overset{\text{\cite{Langville2004Kronecker}}}{=} ((X^\top X ) \otimes I_n + \lambda I_{nr})^{-1} g
+\end{align*}
 
-
-Assume $c$ is differentiable with $\nabla c(x)$ the $\mathbb{R}^{nn \times nr}$ jacombian of $c(x)$. Then by the chain rule, for $v(x) \in \partial h ( c(x)) \subseteq \mathbb{R}^{nn}$,  we have $g(x):= \nabla c(x)^{\top} v  \in \partial f(x) \subseteq \mathbb{R}^{nr}$. The Gauss Newton precontionner \cite{davis2022linearly} for $g$ is  $\nabla c ^\top \nabla c$, and when applied to $g$, acts as follows:
-\[
-(\nabla c(x)^\top \nabla c(x))^{\dagger} g(x) \overset{\text{L\ref{l1},}g=\nabla c^\top v}{=} \nabla c(x)^\dagger \underbrace{\nabla c(x)^{\top \dagger } \nabla c(x)^\top}_{ = (\nabla c(x) \nabla c(x)^\dagger)^\top \overset{\text{\ref{C3}}}{=} \nabla c(x) \nabla c(x)^\dagger  } v(x)  \overset{\text{\ref{C2}}}{=} \nabla c(x)^\dagger \nabla c(x) \nabla c(x)^\dagger = \nabla c(x)^\dagger v(x).
-\]
-
-
-For the matrix recovery problem,  scaled methods preconditionners, which corresponds to the quasi-newton preconditioner with diagonal Hessian's block for the matrix factorization problem \cite{Tong_smooth}, an easier problem then matrix recovery, are the most popular \cite{Tong_smooth,Tong_nonsmooth}. This preconditioner works well in practice for related matrix problems, however, it does not adapt to problem structure since it has been tailored for the factorization problem. A more general preconditioner is the Gauss Newton's one which better approximate the true second-order curvature information required for effective preconditioning. Let's start by verifying Gauss Newton preconditioner for matrix recovery does not reduce to scaled preconditioner, i.e., we want to see if :
-
+As $\lambda \to \infty$,  we recover classic GD (i.e. no conditionning at all) as the diagonal dominates, whereas $\lambda = 0$ we recover scaled method. Now recall GN precondionner for nonoverparametrized acts on $g$ as follows\footnote{Since $\nabla c(x)^\top \nabla c(x))^{\dagger} g(x) \overset{\text{L\ref{l1},}g=\nabla c^\top v}{=} \nabla c(x)^\dagger \underbrace{\nabla c(x)^{\top \dagger } \nabla c(x)^\top}_{ = (\nabla c(x) \nabla c(x)^\dagger)^\top \overset{\text{\ref{C3}}}{=} \nabla c(x) \nabla c(x)^\dagger  } v(x)  \overset{\text{\ref{C2}}}{=} \nabla c(x)^\dagger \nabla c(x) \nabla c(x)^\dagger = \nabla c(x)^\dagger v(x).
+$} :
 
 $$
-\texttt{unvec}\big[(\nabla c^\top \nabla c)^\dagger g  \big]  = \texttt{unvec}(g) \cdot (\texttt{unvec}(x)^\top \texttt{unvec}(x))^{-1}.
+(\nabla c(X)^\top \nabla c(X))^{\dagger} g
 $$
-Apply $\texttt{vec}$ everywhere:
 
+Thus a naive thing to do to extend GN precondionner for parametrized is 
 $$
-\big[(\nabla c^\top \nabla c)^\dagger g  \big]  = \texttt{vec} \big[ \texttt{unvec}(g) \cdot (\texttt{unvec}(x)^\top \texttt{unvec}(x))^{-1} \big ]
-$$
-Using $\texttt{vec}(AB) = (B^{\mathrm{T}} \otimes I_{n})\texttt{vec}(A)$ for $A=\texttt{unvec}(g), B=(\texttt{unvec}(x)^\top \texttt{unvec}(x))^{-1}$, we want to check if:
-$$
-(\nabla c^\top \nabla c)^\dagger  g = ((\texttt{unvec}(x)^\top \texttt{unvec}(x))^{-1}\otimes I_{n}) g
+(\nabla c(X)^\top \nabla c(X) + \lambda I_{nr})^{\dagger} g
 $$
 
 
 
-\subsection{Making Gauss Newton robust to overparametrization}
-In overparametrization setting, as we get closer to $x^*$, scaled's precondionner $P_{scaled}:=(\texttt{unvec}(x)^\top \texttt{unvec}(x))\otimes I_{n}$ may be almost singular.  \cite{xu2023power} propose to add a term $+\lambda I_{r}$ to make it less singular: $$
-(\texttt{unvec}(x)^\top \texttt{unvec}(x) + \lambda I_r)\otimes I_{n} \overset{\text{\cite{Langville2004Kronecker}}}{=} (\texttt{unvec}(x)^\top \texttt{unvec}(x) ) \otimes I_n + \lambda I_{nr}
-$$
-As $\lambda \to \infty$,  we recover classic GD (i.e. no conditionning at all) as the diagonal dominates, whereas $\lambda = 0$ we recover scaled method. Now let's observe Gauss Newton preconditionner:
+\section{GN vs Scaled}
+
 $$
 \nabla c(x)^\top \nabla c(x).
 $$
@@ -180,6 +175,71 @@ $$
 $$
 
 It gradient evaluated at $G(X^TX)^{-1}$ is not stationnary point. Therefore, scaled and  GN are not equivalent for matrix recovery problem. Scaled method is a shortcut inspired from matrix factorization problem.
+
+
+
+
+
+
+
+\newpage
+
+\section{GNP Analysis}
+
+
+
+Consider the following
+
+$$
+\min_{x\in \mathbb{R}^{nr} } f(x):= h(c(x)).
+
+$$
+
+with $c: \mathbb{R}^{nr} \to \mathbb{R}^{nn}$, $h:\mathbb{R}^{nn} \to \mathbb{R}$.
+
+
+
+
+The GNP method relies on approximating what would happen if we would have perform gradient iteration on the image of $c$:
+\begin{equation}
+\label{eq:1}
+    c_{t+1} = c_t - \eta_t v_t   
+
+\end{equation}
+
+
+with $v_t$ a subgradient of $h(c_t)$. Doing so will remove the dependency on the condition number of $c$, for which the condition number of $X^*$ is related, since we are moving on its inmage. However, such method is unpraticable since $c_{t+1}$ may lie outside the image of $C$, and applying projected gradient may be expansive. Rather, Damet et al. propose to approximate the behaviour of moving on $im(c)$ using preconditionners on $x_t$'s.
+
+Assume $c_t \in im(c)$, and let $x_t$ such that $c_t = c(x_t)$. As in projected GD, we want to find as a next point one that is close to $c_{t+1}$ while still being in the image :
+
+$$
+\min_{y} \| c(y) - c_{t+1} \|^2 
+$$
+
+To make this optimization problem easier to solve, we can use first-order approximation aroung $x_t$:
+
+$$
+\hat{c}(y) = c(x_t) + \nabla c(x_t) \cdot (y-x_t)
+$$
+
+Then it is easy to see that  $x_^*$ is a minimizor of $ \min_y \| \hat{c}(y)  - c_{t+1}\|^2$ if and only if
+$$
+(x^*-x_t) = \eta_t \nabla c(x_t)^\dagger v_t + z
+$$
+
+where $z$ is in the nullspace of $\nabla c(x_t)$. The minimizor of $\|x^* - x^t\|$ is obtain when $z=0$. Thus the following update rule :
+
+$$
+x_{t+1} = x_{t} - \nabla c(x_t)^\dagger v_t
+$$
+
+
+satisfie
+$$
+c(x_{t+1}) = \hat{c}(x_{t+1}) + \mathcal{O}(\|\nabla c(x_t)^\dagger v_t \|^2) = c(x_t) - \eta_t \nabla c(x_t) \nabla c(x_t)^\dagger v_t + \mathcal{O}(\|\nabla c(x_t)^\dagger v_t \|^2).
+$$
+The important thing to observe here is that rather then performing update  \ref{eq:1}, we first transformt the subgradient $v_t$ as $\nabla c(x_t) \nabla c(x_t)^\dagger v_t$, i.e., project $v_t$ into $im(\nabla C)$. Damek et al. work next focussed on showing taking the polyak stepsize on the image, i.e. , $\eta_t = \frac{h(c(x_t))-  h^*}{\|P_{im(\nabla c)} v_t \|^2}$ lead to linear convergence.
+
 
 \bibliographystyle{plain}
 \bibliography{ref}
