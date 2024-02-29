@@ -329,15 +329,13 @@ def matrix_recovery(X0, n_iter, lambdaa, A, A_adj, y_true, loss_ord, r_true, con
         return v # n^2 dimension
 
 
-    x = X0
-    x_flat = X0.reshape(-1)
+    X = X0
     losses = []
 
 
     # Pre-compute A*, B*, C*
     #A_star, B_star, C_star = compute_iterate_decomposition(X_true_padded, U_star)
-    n,r = x.shape
-
+    n,r = X.shape
     for t in range(n_iter):
         
         print('Iteration number: ', t)
@@ -345,41 +343,35 @@ def matrix_recovery(X0, n_iter, lambdaa, A, A_adj, y_true, loss_ord, r_true, con
         print(f'Condition number: {cond_number}')
         print("r^*=", r_true)
         print("r=", r)
-        print('h(c(x)) =', h(c(x)))
+        print('h(c(x)) =', h(c(X)))
         print('---------------------')
         
-        losses.append(h(c(x))/y_true.shape[0])
+        losses.append(h(c(X))/y_true.shape[0])
         
         
         
         # Compute the Jacobian of c at x
-        jacob_c = jacobian_c(x)
+        jacob_c = jacobian_c(X)
         
         # Compute v from the subdifferential of h at c(x)
-        v = subdifferential_h(c(x))
+        v = subdifferential_h(c(X))
         
         #subdifferential of h(c(x)) w.r.t x
         g = jacob_c.T @ v
+        
         if method=='gnp':
-            tmp = jacob_c.T.shape[0]
-            preconditionned_g, _,_,_ = np.linalg.lstsq(jacob_c.T @ jacob_c + lambdaa*np.eye(tmp,tmp), g, rcond=None)
+            preconditionned_g, _,_,_ = np.linalg.lstsq(jacob_c.T @ jacob_c + lambdaa*np.eye(jacob_c.T.shape[0],jacob_c.T.shape[0]), g, rcond=None)
             aux = (jacob_c @ preconditionned_g)
-            proj_norm_squared = np.dot(aux , aux)
-            preconditionned_g = preconditionned_g.reshape(n,r)
-            #preconditionned_g = g.reshape(n,r)
-            gamma = (h(c(x)) - 0) / proj_norm_squared
+            preconditionned_G = preconditionned_g.reshape(n,r)
+            gamma = (h(c(X)) - 0) / np.dot(aux,aux)
               
 
             
         elif method=='scaled':
-            preconditionned_g = A_adj((A(x@x.T) - y_true))@ x @ np.linalg.inv(x.T@x + lambdaa*np.eye(r,r)) if loss_ord==2 else A_adj(( np.sign(A(x@x.T) - y_true)) ) @ x @ np.linalg.inv(x.T@x + lambdaa*np.eye(r,r))
-            preconditionned_g = preconditionned_g.reshape(-1)
+            preconditionned_G = A_adj((A(X@X.T) - y_true))@ X @ np.linalg.inv(X.T@X + lambdaa*np.eye(r,r)) if loss_ord==2 else A_adj(( np.sign(A(X@X.T) - y_true)) ) @ X @ np.linalg.inv(X.T@X + lambdaa*np.eye(r,r))
+            preconditionned_g = preconditionned_G.reshape(-1)
             aux = (jacob_c @ preconditionned_g)
-            proj_norm_squared = np.dot(aux , aux)
-            preconditionned_g = preconditionned_g.reshape(n,r)
-            proj_norm_squared = np.dot(aux , aux)
-                
-            gamma = (h(c(x)) - 0) / proj_norm_squared  #TODO use their own
+            gamma = (h(c(X)) - 0) / np.dot(aux , aux)  #TODO use their own
         else:
             raise NotImplementedError
           
@@ -389,7 +381,7 @@ def matrix_recovery(X0, n_iter, lambdaa, A, A_adj, y_true, loss_ord, r_true, con
         # Update  polyak step size gamma
         
 
-        x = x - gamma*preconditionned_g
+        X = X - gamma*preconditionned_G
     
 
     return losses
