@@ -151,7 +151,7 @@ def experiment_3(r_true, ranks, cond_numbers, n, T, init_radius_ratio, loss_ord,
             
     plot_losses_with_styles(losses_scaled, losses_gn, cond_numbers, ranks, r_true, loss_ord, lambdaa_gnp, lambdaa_scaled)
         
-    
+    plt.savefig(f'loss_{loss_ord}.png') 
     
     
 
