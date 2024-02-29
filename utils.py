@@ -340,6 +340,18 @@ def matrix_recovery(X0, n_iter, lambdaa, A, A_adj, y_true, loss_ord, r_true, con
 
     for t in range(n_iter):
         
+        print('Iteration number: ', t)
+        print(f'Method: {method}')
+        print(f'Condition number: {cond_number}')
+        print("r^*=", r_true)
+        print("r=", r)
+        print('h(c(x)) =', h(c(x)))
+        print('---------------------')
+        
+        losses.append(h(c(x))/y_true.shape[0])
+        
+        
+        
         # Compute the Jacobian of c at x
         jacob_c = jacobian_c(x)
         
@@ -353,10 +365,8 @@ def matrix_recovery(X0, n_iter, lambdaa, A, A_adj, y_true, loss_ord, r_true, con
             preconditionned_g, _,_,_ = np.linalg.lstsq(jacob_c.T @ jacob_c + lambdaa*np.eye(tmp,tmp), g, rcond=None)
             aux = (jacob_c @ preconditionned_g)
             proj_norm_squared = np.dot(aux , aux)
-            
-            proj_norm_squared =np.dot(jacob_c.T @ jacob_c @ preconditionned_g,preconditionned_g)
-            preconditionned_g = g.reshape(n,r)
-            
+            preconditionned_g = preconditionned_g.reshape(n,r)
+            #preconditionned_g = g.reshape(n,r)
             gamma = (h(c(x)) - 0) / proj_norm_squared
               
 
@@ -369,7 +379,7 @@ def matrix_recovery(X0, n_iter, lambdaa, A, A_adj, y_true, loss_ord, r_true, con
             preconditionned_g = preconditionned_g.reshape(n,r)
             proj_norm_squared = np.dot(aux , aux)
                 
-            gamma = (h(c(x)) - 0) / proj_norm_squared 
+            gamma = (h(c(x)) - 0) / proj_norm_squared  #TODO use their own
         else:
             raise NotImplementedError
           
@@ -378,16 +388,7 @@ def matrix_recovery(X0, n_iter, lambdaa, A, A_adj, y_true, loss_ord, r_true, con
 
         # Update  polyak step size gamma
         
-        print('Iteration number: ', t)
-        print(f'Method: {method}')
-        print(f'Condition number: {cond_number}')
-        print("r^*=", r_true)
-        print("r=", r)
-        print('h(c(x)) =', h(c(x)))
-        print('---------------------')
-        
-        losses.append(h(c(x)))
-        
+
         x = x - gamma*preconditionned_g
     
 
