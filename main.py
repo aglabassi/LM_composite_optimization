@@ -9,6 +9,7 @@ Created on Tue Feb  2 20:14:14 2024
 # Contents of main.py
 from utils import create_rip_transform, generate_matrix_with_condition, compact_eigendecomposition, gen_random_point_in_neighborhood, matrix_recovery, plot_multiple_metrics_log_scale, plot_losses_with_styles
 import numpy as np
+from gnp import run_gnp
 
 
 #multiple rank,s one cond number
@@ -112,7 +113,7 @@ def experiment_2(r_true, cond_numbers, n, T, init_radius_ratio, loss_ord):
 
 
 #multiple cond numbers and  ranks
-def experiment_3(r_true, ranks, cond_numbers, n, T, init_radius_ratio, loss_ord):
+def experiment_3(r_true, ranks, cond_numbers, n, T, init_radius_ratio, loss_ord, lambdaa_gnp, lambdaa_scaled):
     
     d = 10*n*r_true
     
@@ -137,21 +138,18 @@ def experiment_3(r_true, ranks, cond_numbers, n, T, init_radius_ratio, loss_ord)
         
         for r in ranks: 
             
-            x0 = gen_random_point_in_neighborhood(X_true, radius, r, r_true)
-            
-            padding = np.zeros((n, r - r_true))
-            X_true_padded = np.hstack((X_true, padding))
+            X0 = gen_random_point_in_neighborhood(X_true, radius, r, r_true)
             
             
-            _, losses, errors_A, errors_B, errors_C,_ = matrix_recovery(x0, T, 0, U_star, X_true_padded, lambdaa, r_true, A, A_adj, y_true, cond_number, loss_ord, False)
+            losses= matrix_recovery(X0, T, lambdaa_scaled, A, A_adj, y_true, loss_ord, r_true,cond_number, 'scaled')
             
             losses_scaled.append(losses)
             
-            _, losses, errors_A, errors_B, errors_C,_ = matrix_recovery(x0, T, 0, U_star, X_true_padded, lambdaa, r_true, A, A_adj, y_true,cond_number, loss_ord, True)
+            losses = matrix_recovery(X0, T, lambdaa_gnp, A, A_adj, y_true, loss_ord, r_true,cond_number, 'gnp')
             
             losses_gn.append(losses)
             
-    plot_losses_with_styles(losses_scaled, losses_gn, cond_numbers, ranks, r_true, loss_ord, lambdaa)
+    plot_losses_with_styles(losses_scaled, losses_gn, cond_numbers, ranks, r_true, loss_ord, lambdaa_gnp, lambdaa_scaled)
         
     
     
@@ -167,15 +165,16 @@ if __name__ == "__main__":
 
     
     
-    T = 1000
+    T = 100
     n = 30
-    lambdaa  = 0.000000001
+    lambdaa_gnp  = 0
+    lambdaa_scaled = 0
     init_radius_ratio = 0.1
     cond_number = 10
-    ranks_test = [3, 20]
+    ranks_test = [3, 7]
     cond_numbers_test = [1000]
     
-    experiment_3(r_true, ranks_test, cond_numbers_test, n, T, init_radius_ratio, loss_ord)
+    experiment_3(r_true, ranks_test, cond_numbers_test, n, T, init_radius_ratio, loss_ord, lambdaa_gnp, lambdaa_scaled)
     
     
     #experiment_1(r_true, ranks_test, n, T, cond_number, init_radius_ratio, lambdaa, loss_ord)

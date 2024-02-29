@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 import itertools
 from scipy.linalg import sqrtm
 
-def plot_losses_with_styles(losses_scaled, losses_gn, cond_numbers, ranks, r_true, loss_ord, lambdaa, num_dots=20):
+def plot_losses_with_styles(losses_scaled, losses_gn, cond_numbers, ranks, r_true, loss_ord, lambdaa_gnp, lambdaa_scaled, num_dots=20):
     # Define color palettes for 'scaled' (blue family) and 'gn' (red family)
  
     blue_palette = ['#0d47a1', '#1976d2', '#2196f3', '#64b5f6', '#bbdefb']
@@ -60,7 +60,7 @@ def plot_losses_with_styles(losses_scaled, losses_gn, cond_numbers, ranks, r_tru
         # Add a dummy line to the list for creating a custom legend
         lines.append(plt.Line2D([0], [0], color=color, linestyle=linestyle, marker=marker, label=label))
     
-    plt.title(f'Loss function for Matrix Recovery, r_true = {r_true}, lambda={lambdaa}, loss=l{loss_ord}')
+    plt.title(f'Loss function for Matrix Recovery, r_true = {r_true}, lambda_sc={lambdaa_scaled}, lambda_gnp={lambdaa_gnp}, loss=l{loss_ord}')
     plt.xlabel('Iteration')
     plt.ylabel('Loss')
     plt.yscale('log')
@@ -120,10 +120,10 @@ def gen_random_point_in_neighborhood(X_true, radius, r, r_true):
     distances = np.random.uniform(0, 1, n) ** (1/r) * radius
     
     # Step 3: Scale the directions by the distances (need to reshape distances for broadcasting)
-    #random_points = X_padded + directions * distances[:, np.newaxis]
+    random_points = X_padded + directions * distances[:, np.newaxis]
     
     
-    random_points = np.random.normal(0, 1/n, (n, r))*10**-1
+    #random_points = np.random.normal(0, 1/n, (n, r))*10**-1
     return random_points
 
 
@@ -273,7 +273,7 @@ def create_rip_transform(n, d):
 
 
 
-def matrix_recovery(x0, T, h_star, U_star, X_true_padded, lambdaa, r_true, A, A_adj, y_true, cn, loss_ord, damek):
+def matrix_recovery(X0, n_iter, lambdaa, A, A_adj, y_true, loss_ord, r_true, cond_number, method):
     
     def c(x):
         return x @ x.T 
@@ -329,21 +329,16 @@ def matrix_recovery(x0, T, h_star, U_star, X_true_padded, lambdaa, r_true, A, A_
         return v # n^2 dimension
 
 
-    x = x0
-    x_flat = x0.reshape(-1)
+    x = X0
+    x_flat = X0.reshape(-1)
     losses = []
 
-    losses = []
-    error_A = []
-    error_B = []
-    error_C = []
-    error_total = []
 
     # Pre-compute A*, B*, C*
     #A_star, B_star, C_star = compute_iterate_decomposition(X_true_padded, U_star)
     n,r = x.shape
 
-    for t in range(T):
+    for t in range(n_iter):
         
         # Compute the Jacobian of c at x
         jacob_c = jacobian_c(x)
@@ -353,30 +348,30 @@ def matrix_recovery(x0, T, h_star, U_star, X_true_padded, lambdaa, r_true, A, A_
         
         #subdifferential of h(c(x)) w.r.t x
         g = jacob_c.T @ v
-        if damek:
+        if method=='gnp':
             tmp = jacob_c.T.shape[0]
             preconditionned_g, _,_,_ = np.linalg.lstsq(jacob_c.T @ jacob_c + lambdaa*np.eye(tmp,tmp), g, rcond=None)
             aux = (jacob_c @ preconditionned_g)
             proj_norm_squared = np.dot(aux , aux)
-            preconditionned_g = preconditionned_g.reshape(n,r)
-            #preconditionned_g = g.reshape(n,r)
-            gamma = (h(c(x)) - h_star) / proj_norm_squared if loss_ord == 1 else 0.000001
+            
+            proj_norm_squared =np.dot(jacob_c.T @ jacob_c @ preconditionned_g,preconditionned_g)
+            preconditionned_g = g.reshape(n,r)
+            
+            gamma = (h(c(x)) - 0) / proj_norm_squared
               
 
             
+        elif method=='scaled':
+            preconditionned_g = A_adj((A(x@x.T) - y_true))@ x @ np.linalg.inv(x.T@x + lambdaa*np.eye(r,r)) if loss_ord==2 else A_adj(( np.sign(A(x@x.T) - y_true)) ) @ x @ np.linalg.inv(x.T@x + lambdaa*np.eye(r,r))
+            preconditionned_g = preconditionned_g.reshape(-1)
+            aux = (jacob_c @ preconditionned_g)
+            proj_norm_squared = np.dot(aux , aux)
+            preconditionned_g = preconditionned_g.reshape(n,r)
+            proj_norm_squared = np.dot(aux , aux)
+                
+            gamma = (h(c(x)) - 0) / proj_norm_squared 
         else:
-            if loss_ord == 2:
-                preconditionned_g = A_adj((A(x@x.T) - y_true))@ x @ np.linalg.inv(x.T@x + lambdaa*np.eye(r,r))
-                
-            elif loss_ord == 1:
-                preconditionned_g = A_adj(( np.sign(A(x@x.T) - y_true)) ) @ x @ np.linalg.inv(x.T@x + lambdaa*np.eye(r,r))
-                preconditionned_g = preconditionned_g.reshape(-1)
-                aux = (jacob_c @ preconditionned_g)
-                proj_norm_squared = np.dot(aux , aux)
-                preconditionned_g = preconditionned_g.reshape(n,r)
-                proj_norm_squared = np.dot(aux , aux)
-                
-            gamma = (h(c(x)) - h_star) / proj_norm_squared if loss_ord == 1 else 0.000001
+            raise NotImplementedError
           
 
         #proj_norm_squared = np.dot(preconditioned_v, preconditioned_v)
@@ -384,28 +379,19 @@ def matrix_recovery(x0, T, h_star, U_star, X_true_padded, lambdaa, r_true, A, A_
         # Update  polyak step size gamma
         
         print('Iteration number: ', t)
-        print(f'Method: {"gn" if damek else "scaled"}')
-        print(f'Condition number: {cn}')
+        print(f'Method: {method}')
+        print(f'Condition number: {cond_number}')
         print("r^*=", r_true)
         print("r=", r)
         print('h(c(x)) =', h(c(x)))
         print('---------------------')
         
-        # After updating x
-        #A_t, B_t, C_t = compute_iterate_decomposition(x, U_star)
-        
-        # Compute errors and save them
-        
-        #error_A.append(np.linalg.norm(A_t - A_star, ord='fro'))
-        #error_B.append(np.linalg.norm(B_t - B_star, ord='fro'))
-        #error_C.append(np.linalg.norm(C_t - C_star, ord='fro'))
-        error_total.append(np.linalg.norm(x@x.T - X_true_padded@X_true_padded.T, ord='fro'))
         losses.append(h(c(x)))
         
         x = x - gamma*preconditionned_g
     
 
-    return x, losses, error_A, error_B, error_C, error_total
+    return losses
 
 
 
