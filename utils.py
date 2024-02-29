@@ -68,7 +68,7 @@ def plot_losses_with_styles(losses_scaled, losses_gn, cond_numbers, ranks, r_tru
     # Create a custom legend
     plt.legend(handles=lines)
     plt.show()
-    
+    plt.savefig(f'loss_{loss_ord}.png') 
     
 def plot_multiple_metrics_log_scale(metric_datasets, labels, colors, line_styles, title, xlabel='Iteration', ylabel='Value', logscale=True):
     """
@@ -363,7 +363,7 @@ def matrix_recovery(X0, n_iter, lambdaa, A, A_adj, y_true, loss_ord, r_true, con
             preconditionned_g, _,_,_ = np.linalg.lstsq(jacob_c.T @ jacob_c + lambdaa*np.eye(jacob_c.T.shape[0],jacob_c.T.shape[0]), g, rcond=None)
             aux = (jacob_c @ preconditionned_g)
             preconditionned_G = preconditionned_g.reshape(n,r)
-            gamma = (h(c(X)) - 0) / np.dot(aux,aux)
+            gamma = (h(c(X)) - 0) / np.dot(aux,aux) if loss_ord == 1 else 0.0000005
               
 
             
@@ -371,7 +371,7 @@ def matrix_recovery(X0, n_iter, lambdaa, A, A_adj, y_true, loss_ord, r_true, con
             preconditionned_G = A_adj((A(X@X.T) - y_true))@ X @ np.linalg.inv(X.T@X + lambdaa*np.eye(r,r)) if loss_ord==2 else A_adj(( np.sign(A(X@X.T) - y_true)) ) @ X @ np.linalg.inv(X.T@X + lambdaa*np.eye(r,r))
             preconditionned_g = preconditionned_G.reshape(-1)
             aux = (jacob_c @ preconditionned_g)
-            gamma = (h(c(X)) - 0) / np.dot(aux , aux)  #TODO use their own
+            gamma = (h(c(X)) - 0) / np.dot(aux , aux) if loss_ord == 1 else 0.0000005  #TODO use their own
         else:
             raise NotImplementedError
           
