@@ -10,9 +10,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import itertools
 from scipy.linalg import sqrtm
+import os
 
-
-def plot_losses_with_styles(losses_scaled, losses_gnp, lambdaa_scaled, lambdaa_gnp, cond_numbers, ranks, r_true, loss_ord, num_dots=20):
+def plot_losses_with_styles(losses_scaled, losses_gnp, lambdaa_scaled, lambdaa_gnp, cond_numbers, ranks, r_true, loss_ord, base_dir, num_dots=20):
     # Define color palettes for 'scaled' (blue family) and 'gn' (red family)
  
     blue_palette = ['#0d47a1', '#1976d2', '#2196f3', '#64b5f6', '#bbdefb']
@@ -68,10 +68,12 @@ def plot_losses_with_styles(losses_scaled, losses_gnp, lambdaa_scaled, lambdaa_g
     
     # Create a custom legend
     plt.legend(handles=lines)
+    fig_path = os.path.join(base_dir, f'exp_l{loss_ord}.png')
+    plt.savefig(fig_path, dpi=300)
     plt.show()
-    plt.savefig(f'loss_{loss_ord}.png') 
+
     
-def plot_multiple_metrics_log_scale(metric_datasets, labels, colors, line_styles, title, xlabel='Iteration', ylabel='Value', logscale=True):
+def plot_multiple_metrics_log_scale(metric_datasets, labels, colors, line_styles, title, base_dir, xlabel='Iteration', ylabel='Value', logscale=True):
     """
     Plots multiple metric datasets on a logarithmic scale on the same figure.
 
@@ -93,6 +95,8 @@ def plot_multiple_metrics_log_scale(metric_datasets, labels, colors, line_styles
     plt.legend()
     plt.grid(True, which="both", ls="--")  # Improve grid visibility on log scale
     plt.show()  # Display the plot
+    fig_path = os.path.join(base_dir, 'fig.png')
+    plt.savefig(fig_path)
 
 
 def matrix_rank_svd(matrix, tol=1e-6):
