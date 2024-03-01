@@ -137,8 +137,8 @@ def generate_matrix_with_condition(n, r, condition_number):
     U, s, Vt = np.linalg.svd(A, full_matrices=False)
     
     # Adjust the singular values to achieve the desired condition number
-    # Set the largest singular value to the condition number and the smallest to 1
-    s = np.linspace(condition_number, 1, min(n, r))
+    # Set the smallest singular value to the  inverse of condition number  and the biggest to 1
+    s = np.linspace(1/condition_number, 1, min(n, r))
     
     # Construct the diagonal matrix of singular values
     S = np.zeros((U.shape[1], Vt.shape[0]))
