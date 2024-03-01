@@ -339,21 +339,20 @@ def matrix_recovery(X0, M_star, n_iter, lambdaa, A, A_adj, y_true, loss_ord, r_t
     n,r = X.shape
     for t in range(n_iter):
         
-        print('Iteration number: ', t)
-        print(f'Method: {method}')
-        print(f'Condition number: {cond_number}')
-        print("r^*=", r_true)
-        print("r=", r)
+        if t%20 ==0:
+            print('Iteration number: ', t)
+            print(f'Method: {method}')
+            print(f'Condition number: {cond_number}')
+            print("r^*=", r_true)
+            print("r=", r)
+            print(f'h(c(X)) = {"(DIVERGE)" if(np.isnan(h(c(X)) ) or h(c(X)) > 2*h(c(X0))) else  h(c(X))}')
+            print('---------------------')
 
         
         if np.isnan(h(c(X)) ) or h(c(X)) > 2*h(c(X0)):
             losses.append(10**10)
-            print('h(c(X)) = (DIVERGE)')
         else:
             losses.append(h(c(X))/y_true.shape[0] )
-            print(f'h(c(X)) = {h(c(X))}')
-        
-        print('---------------------')
         
         
         # Compute the Jacobian of c at x
