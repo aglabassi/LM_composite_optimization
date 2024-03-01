@@ -379,6 +379,7 @@ def matrix_recovery(X0, M_star, n_iter, lambdaa, A, A_adj, y_true, loss_ord, r_t
                 preconditionned_G = A_adj((A(X@X.T) - y_true))@ X @ np.linalg.inv(X.T@X + dampling*np.eye(r,r)) if loss_ord==2 else A_adj(( np.sign(A(X@X.T) - y_true)) ) @ X @ np.linalg.inv(X.T@X + dampling*np.eye(r,r))
                 preconditionned_g = preconditionned_G.reshape(-1)
                 aux = A_adj(( np.sign(A(X@X.T) - y_true)) ) @ X @ sqrtm(np.linalg.inv(X.T@X + dampling*np.eye(r,r)))
+                gamma = (h(c(X)) - 0) / np.sum(np.multiply(aux,aux)) if loss_ord == 1 else 0.000001
             except:
                 ''
         else:
