@@ -118,8 +118,8 @@ if __name__ == "__main__":
             print("Please provide an integer value for loss_ord.")
             sys.exit(1)
     else:
-        print("No loss_ord provided, using default value of 1.")
-        loss_ord = 1  # Default value if not provided
+        loss_ord = 2  # Default value if not provided
+        print(f"No loss_ord provided, using default value of {loss_ord}.")
 
         
  

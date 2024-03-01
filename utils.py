@@ -346,9 +346,8 @@ def matrix_recovery(X0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond
         if t%20 ==0:
             print(f'Iteration number :  {t}')
             print(f'Method           :  {method}')
-            print(f'Condition number :  {cond_number}')
-            print(f"r^*              :  {r_true}")
-            print(f"r                :  {r}")
+            print(f'Cond. number     :  {cond_number}')
+            print(f"r*, r            :  {(r_true, r)}")
             print(f'h(c(X)) = {"(DIVERGE)" if(np.isnan(h(c(X)) ) or h(c(X)) > 2*h(c(X0))) else  h(c(X))}')
             print('---------------------')
 
