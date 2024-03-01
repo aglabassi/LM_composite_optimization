@@ -195,6 +195,26 @@ def matrix_recovery(X0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond
                                 
         
         return jac #n^2 X nr matrix
+    
+    def update_jacobian_c(jac, X):
+        n, r = X.shape
+        
+        # Update for i != j
+        for i in range(n):
+            for j in range(n):
+                if i != j:
+                    for l in range(r):
+                        # Update for i == k
+                        jac[i*n + j, i*r + l] = X[j, l]
+                        # Update for j == k
+                        jac[i*n + j, j*r + l] = X[i, l]
+    
+        # Update for i == j
+        for i in range(n):
+            for l in range(r):
+                # Update for i == k
+                jac[i*n + i, i*r + l] = 2*X[i, l]
+
         
         
     def subdifferential_h(M):
@@ -220,7 +240,7 @@ def matrix_recovery(X0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond
 
     X = X0
     losses = []
-
+    jacob_c = jacobian_c(X)
 
     # Pre-compute A*, B*, C*
     #A_star, B_star, C_star = compute_iterate_decomposition(X_true_padded, U_star)
@@ -243,7 +263,8 @@ def matrix_recovery(X0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond
         
         
         # Compute the Jacobian of c at x
-        jacob_c = jacobian_c(X)
+        update_jacobian_c(jacob_c, X)
+        
         
         # Compute v from the subdifferential of h at c(x)
         v = subdifferential_h(c(X))
