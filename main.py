@@ -141,11 +141,11 @@ def experiment_3(r_true, ranks, cond_numbers, n, T, init_radius_ratio, loss_ord,
             X0 = gen_random_point_in_neighborhood(X_true, radius, r, r_true)
             
             
-            losses= matrix_recovery(X0, T, lambdaa_scaled, A, A_adj, y_true, loss_ord, r_true,cond_number, 'scaled')
+            losses= matrix_recovery(X0, M_true, T, lambdaa_scaled, A, A_adj, y_true, loss_ord, r_true,cond_number, 'scaled')
             
             losses_scaled.append(losses)
             
-            losses = matrix_recovery(X0, T, lambdaa_gnp, A, A_adj, y_true, loss_ord, r_true,cond_number, 'gnp')
+            losses = matrix_recovery(X0, M_true,T, lambdaa_gnp, A, A_adj, y_true, loss_ord, r_true,cond_number, 'gnp')
             
             losses_gn.append(losses)
             
@@ -171,9 +171,9 @@ if __name__ == "__main__":
     lambdaa_scaled = 0
     init_radius_ratio = 0.1
     cond_number = 10
-    ranks_test = [3, 7]
-    cond_numbers_test = [1000]
-    
+    ranks_test = [3,20]
+    cond_numbers_test = [1,1000]
+
     experiment_3(r_true, ranks_test, cond_numbers_test, n, T, init_radius_ratio, loss_ord, lambdaa_gnp, lambdaa_scaled)
     
     

@@ -274,7 +274,7 @@ def create_rip_transform(n, d):
 
 
 
-def matrix_recovery(X0, n_iter, lambdaa, A, A_adj, y_true, loss_ord, r_true, cond_number, method):
+def matrix_recovery(X0, M_star, n_iter, lambdaa, A, A_adj, y_true, loss_ord, r_true, cond_number, method):
     
     def c(x):
         return x @ x.T 
@@ -366,7 +366,8 @@ def matrix_recovery(X0, n_iter, lambdaa, A, A_adj, y_true, loss_ord, r_true, con
         g = jacob_c.T @ v
         
         if method=='gnp':
-            preconditionned_g, _,_,_ = np.linalg.lstsq(jacob_c.T @ jacob_c + lambdaa*np.eye(jacob_c.T.shape[0],jacob_c.T.shape[0]), g, rcond=None)
+            dampling = lambdaa if lambdaa != 'Liwei' else np.linalg.norm(c(X) - M_star, ord='fro')
+            preconditionned_g, _,_,_ = np.linalg.lstsq(jacob_c.T @ jacob_c + dampling*np.eye(jacob_c.T.shape[0],jacob_c.T.shape[0]), g, rcond=None)
             aux = (jacob_c @ preconditionned_g)
             preconditionned_G = preconditionned_g.reshape(n,r)
             gamma = (h(c(X)) - 0) / np.dot(aux,aux) if loss_ord == 1 else 0.0000005
