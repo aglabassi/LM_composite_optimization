@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import itertools
 from scipy.linalg import sqrtm
 
+
 def plot_losses_with_styles(losses_scaled, losses_gn, cond_numbers, ranks, r_true, loss_ord, lambdaa_gnp, lambdaa_scaled, num_dots=20):
     # Define color palettes for 'scaled' (blue family) and 'gn' (red family)
  
@@ -370,8 +371,8 @@ def matrix_recovery(X0, n_iter, lambdaa, A, A_adj, y_true, loss_ord, r_true, con
         elif method=='scaled':
             preconditionned_G = A_adj((A(X@X.T) - y_true))@ X @ np.linalg.inv(X.T@X + lambdaa*np.eye(r,r)) if loss_ord==2 else A_adj(( np.sign(A(X@X.T) - y_true)) ) @ X @ np.linalg.inv(X.T@X + lambdaa*np.eye(r,r))
             preconditionned_g = preconditionned_G.reshape(-1)
-            aux = (jacob_c @ preconditionned_g)
-            gamma = (h(c(X)) - 0) / np.dot(aux , aux) if loss_ord == 1 else 0.0000005  #TODO use their own
+            aux = A_adj(( np.sign(A(X@X.T) - y_true)) ) @ X @ sqrtm(np.linalg.inv(X.T@X + lambdaa*np.eye(r,r)))
+            gamma = (h(c(X)) - 0) / np.sum(np.multiply(aux , aux)) if loss_ord == 1 else 0.0000005  #TODO use their own
         else:
             raise NotImplementedError
           
