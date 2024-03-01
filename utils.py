@@ -344,11 +344,16 @@ def matrix_recovery(X0, n_iter, lambdaa, A, A_adj, y_true, loss_ord, r_true, con
         print(f'Condition number: {cond_number}')
         print("r^*=", r_true)
         print("r=", r)
-        print('h(c(x)) =', h(c(X)))
+
+        
+        if np.isnan(h(c(X)) ) or h(c(X)) > 2*h(c(X0)):
+            losses.append(10**10)
+            print('h(c(X)) = (DIVERGE)')
+        else:
+            losses.append(h(c(X))/y_true.shape[0] )
+            print(f'h(c(X)) = {h(c(X))}')
+        
         print('---------------------')
-        
-        losses.append(h(c(X))/y_true.shape[0])
-        
         
         
         # Compute the Jacobian of c at x
@@ -369,10 +374,13 @@ def matrix_recovery(X0, n_iter, lambdaa, A, A_adj, y_true, loss_ord, r_true, con
 
             
         elif method=='scaled':
-            preconditionned_G = A_adj((A(X@X.T) - y_true))@ X @ np.linalg.inv(X.T@X + lambdaa*np.eye(r,r)) if loss_ord==2 else A_adj(( np.sign(A(X@X.T) - y_true)) ) @ X @ np.linalg.inv(X.T@X + lambdaa*np.eye(r,r))
-            preconditionned_g = preconditionned_G.reshape(-1)
-            aux = A_adj(( np.sign(A(X@X.T) - y_true)) ) @ X @ sqrtm(np.linalg.inv(X.T@X + lambdaa*np.eye(r,r)))
-            gamma = (h(c(X)) - 0) / np.sum(np.multiply(aux , aux)) if loss_ord == 1 else 0.0000005  #TODO use their own
+            try:
+                preconditionned_G = A_adj((A(X@X.T) - y_true))@ X @ np.linalg.inv(X.T@X + lambdaa*np.eye(r,r)) if loss_ord==2 else A_adj(( np.sign(A(X@X.T) - y_true)) ) @ X @ np.linalg.inv(X.T@X + lambdaa*np.eye(r,r))
+                preconditionned_g = preconditionned_G.reshape(-1)
+                aux = A_adj(( np.sign(A(X@X.T) - y_true)) ) @ X @ sqrtm(np.linalg.inv(X.T@X + lambdaa*np.eye(r,r)))
+                gamma = (h(c(X)) - 0) / np.sum(np.multiply(aux , aux)) if loss_ord == 1 else 0.0000005  #TODO use their own
+            except:
+                ''
         else:
             raise NotImplementedError
           
