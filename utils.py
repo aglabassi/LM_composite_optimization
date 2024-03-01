@@ -370,16 +370,16 @@ def matrix_recovery(X0, M_star, n_iter, lambdaa, A, A_adj, y_true, loss_ord, r_t
             preconditionned_g, _,_,_ = np.linalg.lstsq(jacob_c.T @ jacob_c + dampling*np.eye(jacob_c.T.shape[0],jacob_c.T.shape[0]), g, rcond=None)
             aux = (jacob_c @ preconditionned_g)
             preconditionned_G = preconditionned_g.reshape(n,r)
-            gamma = (h(c(X)) - 0) / np.dot(aux,aux) if loss_ord == 1 else 0.0000005
+            gamma = (h(c(X)) - 0) / np.dot(aux,aux) if loss_ord == 1 else 0.000001
               
 
             
         elif method=='scaled':
             try:
-                preconditionned_G = A_adj((A(X@X.T) - y_true))@ X @ np.linalg.inv(X.T@X + lambdaa*np.eye(r,r)) if loss_ord==2 else A_adj(( np.sign(A(X@X.T) - y_true)) ) @ X @ np.linalg.inv(X.T@X + lambdaa*np.eye(r,r))
+                dampling = lambdaa if lambdaa != 'Liwei' else np.linalg.norm(c(X) - M_star, ord='fro')
+                preconditionned_G = A_adj((A(X@X.T) - y_true))@ X @ np.linalg.inv(X.T@X + dampling*np.eye(r,r)) if loss_ord==2 else A_adj(( np.sign(A(X@X.T) - y_true)) ) @ X @ np.linalg.inv(X.T@X + dampling*np.eye(r,r))
                 preconditionned_g = preconditionned_G.reshape(-1)
                 aux = A_adj(( np.sign(A(X@X.T) - y_true)) ) @ X @ sqrtm(np.linalg.inv(X.T@X + dampling*np.eye(r,r)))
-                gamma = (h(c(X)) - 0) / np.sum(np.multiply(aux , aux)) if loss_ord == 1 else 0.0000005  #TODO use their own
             except:
                 ''
         else:

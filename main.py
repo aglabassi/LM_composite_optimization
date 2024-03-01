@@ -151,28 +151,26 @@ def experiment_3(r_true, ranks, cond_numbers, n, T, init_radius_ratio, loss_ord,
             
     plot_losses_with_styles(losses_scaled, losses_gn, cond_numbers, ranks, r_true, loss_ord, lambdaa_gnp, lambdaa_scaled)
         
-    plt.savefig(f'loss_{loss_ord}.png') 
-    
     
 
     
 
 if __name__ == "__main__":
     
-    loss_ord = 1 #L1 or l2 loss. If L2: smooth optimization regime with constant stepsize. If L1: nonsmooth optimization with poliak 
+    loss_ord = 2 #L1 or l2 loss. If L2: smooth optimization regime with constant stepsize. If L1: nonsmooth optimization with poliak 
 
     r_true = 3
 
     
     
-    T = 100
+    T = 600
     n = 30
-    lambdaa_gnp  = 0
-    lambdaa_scaled = 0
+    lambdaa_gnp  = 'Liwei'
+    lambdaa_scaled = 'Liwei'
     init_radius_ratio = 0.1
     cond_number = 10
-    ranks_test = [3,20]
-    cond_numbers_test = [1,1000]
+    ranks_test = [10]
+    cond_numbers_test = [10,1000]
 
     experiment_3(r_true, ranks_test, cond_numbers_test, n, T, init_radius_ratio, loss_ord, lambdaa_gnp, lambdaa_scaled)
     
