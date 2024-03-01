@@ -73,40 +73,8 @@ def plot_losses_with_styles(losses_scaled, losses_gnp, lambdaa_scaled, lambdaa_g
     plt.show()
 
     
-def plot_multiple_metrics_log_scale(metric_datasets, labels, colors, line_styles, title, base_dir, xlabel='Iteration', ylabel='Value', logscale=True):
-    """
-    Plots multiple metric datasets on a logarithmic scale on the same figure.
-
-    Parameters:
-    - metric_datasets: List of lists, where each sublist contains metric values for a different experiment.
-    - labels: List of labels for the legend, corresponding to each dataset.
-    - title: Title for the plot.
-    - xlabel: Label for the x-axis.
-    - ylabel: Label for the y-axis.
-    """
-    plt.figure(figsize=(10, 8))  # Adjust size as needed
-    for dataset, label, color, line_style in zip(metric_datasets, labels, colors, line_styles):
-        plt.plot(dataset, label=label, color=color, linestyle=line_style)
-    plt.title(title)
-    plt.xlabel(xlabel)
-    plt.ylabel(ylabel)
-    if logscale:
-        plt.yscale('log')  # Set the y-axis to a logarithmic scale
-    plt.legend()
-    plt.grid(True, which="both", ls="--")  # Improve grid visibility on log scale
-    plt.show()  # Display the plot
-    fig_path = os.path.join(base_dir, 'fig.png')
-    plt.savefig(fig_path)
 
 
-def matrix_rank_svd(matrix, tol=1e-6):
-    # Compute the Singular Value Decomposition
-    U, s, V = np.linalg.svd(matrix, full_matrices=False)
-    
-    # Count the number of singular values larger than the tolerance
-    rank = np.sum(s > tol)
-    
-    return rank
 
 
 def gen_random_point_in_neighborhood(X_true, radius, r, r_true):
@@ -154,90 +122,6 @@ def generate_matrix_with_condition(n, r, condition_number):
     return A_prime
 
 
-def complete_orthogonal_matrix(A):
-    """
-    Given an orthogonal matrix A of dimension n x r, this function outputs a matrix B
-    of dimension n x (n-r) such that the matrix [A, B] is an orthogonal nxn matrix.
-
-    Parameters:
-    - A: Orthogonal matrix of shape (n, r)
-
-    Returns:
-    - B: Matrix of shape (n, n-r) that, when concatenated with A, forms an orthogonal nxn matrix
-    """
-    n, r = A.shape
-    # Generate a random n x n matrix
-    random_matrix = np.random.rand(n, n)
-    # Perform QR decomposition on the random matrix
-    Q, _ = np.linalg.qr(random_matrix)
-    
-    # A's columns are already orthonormal. We need to find the orthonormal basis that is orthogonal to A
-    # Since Q is orthogonal, its columns form an orthonormal basis of R^n
-    # We take the last n-r columns of Q that are orthogonal to the column space of A
-    B = Q[:, r:n]
-    
-    return B
-
-def compact_eigendecomposition(A, tol=1e-10):
-    """
-    Perform a compact eigendecomposition of a symmetric matrix A, discarding
-    eigenvalues that are zero (within a tolerance).
-
-    Parameters:
-    - A: A symmetric numpy array of shape (n, n).
-    - tol: Tolerance for considering eigenvalues as zero.
-
-    Returns:
-    - D: A diagonal matrix (numpy array) of non-zero eigenvalues.
-    - U: A matrix (numpy array) of corresponding eigenvectors.
-    """
-    # Ensure A is symmetric to avoid inaccuracies
-    if not np.allclose(A, A.T):
-        raise ValueError("Matrix A must be symmetric.")
-    
-    # Compute eigendecomposition
-    eigenvalues, eigenvectors = np.linalg.eigh(A)
-    
-    # Filter out eigenvalues close to zero
-    non_zero_indices = np.abs(eigenvalues) > tol
-    filtered_eigenvalues = eigenvalues[non_zero_indices]
-    filtered_eigenvectors = eigenvectors[:, non_zero_indices]
-    
-    # Construct diagonal matrix D from filtered eigenvalues
-    D = np.diag(filtered_eigenvalues)
-    
-    # U is already the matrix of filtered eigenvectors
-    U = filtered_eigenvectors
-    
-    return D, U
-
-def compute_iterate_decomposition(X, U_star):
-    n, r = X.shape
-    r_star = U_star.shape[1]
-    
-    # Compute S = U_star.T @ X
-    S = U_star.T @ X
-    
-    # Singular Value Decomposition of S to find V
-    _, _, VT = np.linalg.svd(S)
-    V = VT.T
-    
-    # Compute U_star complement
-    U_star_complement = complete_orthogonal_matrix(U_star)
-    
-    # Compute N = U_star_complement.T @ X
-    N = U_star_complement.T @ X
-    
-    # Compute A, B, C
-    A = U_star @ S
-    B = U_star_complement @ N
-    
-    # Find V complement, which is the orthogonal complement of V in r-dimensional space
-    #V_complement = complete_orthogonal_matrix(V[:, :r_star])  # Assuming V's dimensionality
-    
-    C = U_star_complement @ N
-    
-    return A, B, C
 
 def create_rip_transform(n, d):
     """
@@ -387,11 +271,6 @@ def matrix_recovery(X0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond
                 ''
         else:
             raise NotImplementedError
-          
-
-        #proj_norm_squared = np.dot(preconditioned_v, preconditioned_v)
-
-        # Update  polyak step size gamma
         
 
         X = X - gamma*preconditionned_G
