@@ -12,7 +12,7 @@ import itertools
 from scipy.linalg import sqrtm
 
 
-def plot_losses_with_styles(losses_scaled, losses_gn, cond_numbers, ranks, r_true, loss_ord, lambdaa_gnp, lambdaa_scaled, num_dots=20):
+def plot_losses_with_styles(losses_scaled, losses_gnp, lambdaa_scaled, lambdaa_gnp, cond_numbers, ranks, r_true, loss_ord, num_dots=20):
     # Define color palettes for 'scaled' (blue family) and 'gn' (red family)
  
     blue_palette = ['#0d47a1', '#1976d2', '#2196f3', '#64b5f6', '#bbdefb']
@@ -47,7 +47,7 @@ def plot_losses_with_styles(losses_scaled, losses_gn, cond_numbers, ranks, r_tru
         marker = plot_markers[int(cond_n.split('=')[1])]
         linestyle = plot_linestyles[int(r.split('=')[1])]
         
-        loss_data = losses_scaled[i] if i < len(losses_scaled) else losses_gn[i - len(losses_scaled)]
+        loss_data = losses_scaled[i] if i < len(losses_scaled) else losses_gnp[i - len(losses_scaled)]
         
         # Plot the line
         line, = plt.plot(loss_data, color=color, linestyle=linestyle)
@@ -274,7 +274,7 @@ def create_rip_transform(n, d):
 
 
 
-def matrix_recovery(X0, M_star, n_iter, lambdaa, A, A_adj, y_true, loss_ord, r_true, cond_number, method):
+def matrix_recovery(X0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond_number, lambdaa, method):
     
     def c(x):
         return x @ x.T 
@@ -340,11 +340,11 @@ def matrix_recovery(X0, M_star, n_iter, lambdaa, A, A_adj, y_true, loss_ord, r_t
     for t in range(n_iter):
         
         if t%20 ==0:
-            print('Iteration number: ', t)
-            print(f'Method: {method}')
-            print(f'Condition number: {cond_number}')
-            print("r^*=", r_true)
-            print("r=", r)
+            print(f'Iteration number :  {t}')
+            print(f'Method           :  {method}')
+            print(f'Condition number :  {cond_number}')
+            print(f"r^*              :  {r_true}")
+            print(f"r                :  {r}")
             print(f'h(c(X)) = {"(DIVERGE)" if(np.isnan(h(c(X)) ) or h(c(X)) > 2*h(c(X0))) else  h(c(X))}')
             print('---------------------')
 
