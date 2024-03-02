@@ -78,45 +78,35 @@ def plot_losses_with_styles(losses_scaled, losses_gnp, lambdaa_scaled, lambdaa_g
 
 
 def gen_random_point_in_neighborhood(X_true, radius, r, r_true):
-    n, dim = X_true.shape  # n is the number of points, dim is the dimensionality
+    n, dim = X_true.shape
     
     padding = np.zeros((n, r - r_true))
     X_padded = np.hstack((X_true, padding))
     
-    # Step 1: Generate random directions
     directions = np.random.normal(0, 1, (n, r))
-    # Normalize each vector to have unit length
     norms = np.linalg.norm(directions, axis=1, keepdims=True)
     directions /= norms
     
-    # Step 2: Generate random distances from the center
     distances = np.random.uniform(0, 1, n) ** (1/r) * radius
     
-    # Step 3: Scale the directions by the distances (need to reshape distances for broadcasting)
     random_points = X_padded + directions * distances[:, np.newaxis]
     
     
-    #random_points = np.random.normal(0, 1/n, (n, r))*10**-1
     return random_points
 
 
 
 def generate_matrix_with_condition(n, r, condition_number):
-    # Generate a random matrix of dimension n x r
+    
     A = np.random.randn(n, r)
     
-    # Perform SVD on the matrix
     U, s, Vt = np.linalg.svd(A, full_matrices=False)
     
-    # Adjust the singular values to achieve the desired condition number
-    # Set the smallest singular value to the  inverse of condition number  and the biggest to 1
     s = np.linspace(1/condition_number, 1, min(n, r))
     
-    # Construct the diagonal matrix of singular values
     S = np.zeros((U.shape[1], Vt.shape[0]))
     np.fill_diagonal(S, s)
     
-    # Reconstruct the matrix with the desired condition number
     A_prime = U @ S @ Vt
     
     return A_prime
@@ -124,15 +114,9 @@ def generate_matrix_with_condition(n, r, condition_number):
 
 
 def create_rip_transform(n, d):
-    """
-    Create a linear transformation that maps matrices of dimension n*n to vectors of dimension d.
-    This uses a random Gaussian matrix, which is known to satisfy the RIP under certain conditions.
-    """
-    # Flattening factor to convert the matrix to a vector
+    
     flattening_factor = n **2
 
-    # Create a random Gaussian matrix of size d x (n*r)
-    # The entries are drawn from N(0, 1/d) to ensure the RIP with high probability
     transformation_matrix_diag = np.random.normal(0, np.sqrt(1/d), (d, flattening_factor))
     transformation_matrix_offdiag = np.random.normal(0, np.sqrt(1/2*d), (d, flattening_factor))
     
@@ -142,16 +126,12 @@ def create_rip_transform(n, d):
     adjoint_transformation_matrix = transformation_matrix.T
     
 
-    # Define the linear transformation function
     def transform(matrix):
-        # Flatten the matrix into a vector
         matrix_flattened = matrix.reshape(-1)
-        # Apply the linear transformation
         return np.dot(transformation_matrix, matrix_flattened)
 
 
     def adjoint_transform(vector):
-        # Apply the adjoint linear transformation, then reshape the result back into a matrix
         matrix_reconstructed = np.dot(adjoint_transformation_matrix, vector)
         return matrix_reconstructed.reshape(n, n)
 
@@ -242,8 +222,6 @@ def matrix_recovery(X0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond
     losses = []
     jacob_c = jacobian_c(X)
 
-    # Pre-compute A*, B*, C*
-    #A_star, B_star, C_star = compute_iterate_decomposition(X_true_padded, U_star)
     n,r = X.shape
     for t in range(n_iter):
         
@@ -261,15 +239,11 @@ def matrix_recovery(X0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond
         else:
             losses.append(h(c(X))/y_true.shape[0] )
         
-        
-        # Compute the Jacobian of c at x
         update_jacobian_c(jacob_c, X)
         
         
-        # Compute v from the subdifferential of h at c(x)
         v = subdifferential_h(c(X))
         
-        #subdifferential of h(c(x)) w.r.t x
         g = jacob_c.T @ v
         
         dampling = lambdaa if lambdaa != 'Liwei' else np.linalg.norm(c(X) - M_star, ord='fro')
