@@ -61,14 +61,17 @@ def plot_losses_with_styles(losses_scaled, losses_gnp, lambdaa_scaled, lambdaa_g
         # Add a dummy line to the list for creating a custom legend
         lines.append(plt.Line2D([0], [0], color=color, linestyle=linestyle, marker=marker, label=label))
     
-    plt.title(f'Loss function for Matrix Recovery, r_true = {r_true}, lambda_sc={lambdaa_scaled}, lambda_gnp={lambdaa_gnp}, loss=l{loss_ord}')
+    plt.title(f'Loss function for Matrix Recovery, $r^*={r_true}$, '
+          f'$\\lambda_{{scaled}}={lambdaa_scaled}$, '
+          f'$\\lambda_{{gnp}}={lambdaa_gnp}$, loss=l{loss_ord}')
+    
     plt.xlabel('Iteration')
     plt.ylabel('Loss')
     plt.yscale('log')
     
     # Create a custom legend
     plt.legend(handles=lines)
-    fig_path = os.path.join(base_dir, f'exp_l{loss_ord}.png')
+    fig_path = os.path.join(base_dir, f'experiments/exp_l{loss_ord}.png')
     plt.savefig(fig_path, dpi=300)
     plt.show()
 
@@ -142,7 +145,7 @@ def create_rip_transform(n, d):
 
 
 
-def matrix_recovery(X0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond_number, lambdaa, method):
+def matrix_recovery(X0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond_number, lambdaa, method, base_dir, trial):
     
     def c(x):
         return x @ x.T 
@@ -248,20 +251,8 @@ def matrix_recovery(X0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond
         
         dampling = lambdaa if lambdaa != 'Liwei' else np.linalg.norm(c(X) - M_star, ord='fro')
         
-        if method=='gnp':
             
-            try:
-                preconditionned_g, _,_,_ = np.linalg.lstsq(jacob_c.T @ jacob_c + dampling*np.eye(jacob_c.shape[1],jacob_c.shape[1]), g, rcond=None)
-            except:
-                preconditionned_g = g #No precondionning 
-                
-            preconditionned_G = preconditionned_g.reshape(n,r)
-            aux = (jacob_c @ preconditionned_g) if loss_ord == 1 else 'we dont care'
-            gamma = (h(c(X)) - 0) / np.dot(aux,aux) if loss_ord == 1 else 0.000001
-              
-
-            
-        elif method=='scaled':
+        if method=='scaled':
             try:
                 residual = (A(X@X.T) - y_true) if loss_ord==2 else np.sign(A(X@X.T) - y_true)
                 try:
@@ -275,13 +266,29 @@ def matrix_recovery(X0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond
                 gamma = (h(c(X)) - 0) / np.sum(np.multiply(aux,aux)) if loss_ord == 1 else 0.000001
             except:
                 print("diverged")
+                
+        elif method=='gnp':
+            
+            try:
+                preconditionned_g, _,_,_ = np.linalg.lstsq(jacob_c.T @ jacob_c + dampling*np.eye(jacob_c.shape[1],jacob_c.shape[1]), g, rcond=None)
+            except:
+                preconditionned_g = g #No precondionning 
+                
+            preconditionned_G = preconditionned_g.reshape(n,r)
+            aux = (jacob_c @ preconditionned_g) if loss_ord == 1 else 'we dont care'
+            gamma = (h(c(X)) - 0) / np.dot(aux,aux) if loss_ord == 1 else 0.000001
+                      
+
         else:
             raise NotImplementedError
         
 
         X = X - gamma*preconditionned_G
-    
+    file_name = f'experiments/exp_{method}_l_{loss_ord}_r*={r_true}_r={X.shape[1]}_condn={cond_number}_trial_{trial}.csv'
+    full_path = os.path.join(base_dir, file_name)
 
+    np.savetxt(full_path, losses, delimiter=',') 
+    
     return losses
 
 

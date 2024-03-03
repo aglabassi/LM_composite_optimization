@@ -1,65 +1,60 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Created on Tue Feb  2 20:14:14 2024
-
-@author: aglabassi
-"""
-
-# Contents of main.py
-from utils import create_rip_transform, generate_matrix_with_condition, gen_random_point_in_neighborhood, matrix_recovery, plot_losses_with_styles
+import sys,os
+from functools import partial
+from multiprocessing import Process
 import numpy as np
-import os
-import sys
+import glob
+from utils import create_rip_transform, generate_matrix_with_condition, gen_random_point_in_neighborhood, matrix_recovery, plot_losses_with_styles
 
-    
+def trial_execution(trial, n, r_true, d, cond_numbers, ranks, init_radius_ratio, T, loss_ord, lambdaa_scaled, lambdaa_gnp, base_dir):
+    np.random.seed(trial)  # Ensure different seeds for different trials
+    A, A_adj = create_rip_transform(n, d)
+    losses_scaled_trial = []
+    losses_gnp_trial = []
+
+    for cond_number in cond_numbers:
+        X_true = generate_matrix_with_condition(n, r_true, cond_number)
+        M_true = X_true @ X_true.T
+        y_true = A(M_true)
+
+        radius = init_radius_ratio*np.linalg.norm(X_true, ord='fro')
+
+        for r in ranks:
+            X0 = gen_random_point_in_neighborhood(X_true, radius, r, r_true)
+            losses_scaled_trial.append(matrix_recovery(X0, M_true, T, A, A_adj, y_true, loss_ord, r_true, cond_number, lambdaa_scaled, 'scaled', base_dir, trial))
+            losses_gnp_trial.append(matrix_recovery(X0, M_true, T, A, A_adj, y_true, loss_ord, r_true, cond_number, lambdaa_gnp, 'gnp', base_dir, trial))
+
+    return losses_scaled_trial, losses_gnp_trial
 
 
 
-#multiple cond numbers and  ranks
-def experiment(r_true, ranks, cond_numbers, n, T, init_radius_ratio, loss_ord, lambdaa_gnp, lambdaa_scaled, n_trial):
-    
-    d = 10*n*r_true
-    
-    A,A_adj = create_rip_transform(n, d) 
-    
-
-    losses_scaled_trials = []
-    losses_gnp_trials = []
-    for trial in range(n_trial):
-                        
-        losses_scaled_trial = []
-        losses_gnp_trial = []
-    
+def collect_compute_mean_losses(ranks, cond_numbers, loss_ord, r_true):
+    losses_scaled = []
+    losses_gnp = []
+    for rank in ranks:
         for cond_number in cond_numbers:
-            
-            X_true = generate_matrix_with_condition(n, r_true, cond_number)
-            M_true = X_true @ X_true.T
-            A,A_adj = create_rip_transform(n, d) 
-            y_true = A(M_true)
-            
-            radius = init_radius_ratio*np.linalg.norm(X_true, ord='fro')
-            
-            for r in ranks: 
+            for method in ['scaled', 'gnp']:
+                file_pattern = f"experiments/exp_{method}_l_{loss_ord}_r*={r_true}_r={rank}_condn={cond_number}_trial_*.csv"
+                file_list = glob.glob(file_pattern)
+                data_list = []
                 
-                X0 = gen_random_point_in_neighborhood(X_true, radius, r, r_true)
+                # Read each file and append its data to the data_list
+                for file in file_list:
+                    data_list.append(np.loadtxt(file, delimiter=','))  # Assume the CSV is correctly formatted for np.loadtxt
                 
-                losses_scaled_trial.append(matrix_recovery(X0, M_true, T,A, A_adj, y_true, loss_ord, r_true,cond_number, lambdaa_scaled, 'scaled'))
-                losses_gnp_trial.append(matrix_recovery(X0, M_true,T, A, A_adj, y_true, loss_ord, r_true,cond_number, lambdaa_gnp, 'gnp'))
+                # Convert the list of arrays into a 2D numpy array for easier manipulation
+                data_array = np.array(data_list)
                 
-            losses_scaled_trials.append(losses_scaled_trial)
-            losses_gnp_trials.append(losses_gnp_trial)
+                # Compute the mean across all trials (rows) for each experiment
+                mean_values = np.mean(data_array, axis=0)
+                if method == 'scaled':
+                    losses_scaled.append(mean_values)
+                else:
+                    losses_gnp.append(mean_values)
+    
+    return losses_scaled, losses_gnp
 
-    
-    losses_scaled = np.mean(np.array(losses_scaled_trials), axis=0)
-    losses_gnp = np.mean(np.array(losses_gnp_trials), axis=0)
-    
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    
-    plot_losses_with_styles(losses_scaled, losses_gnp, lambdaa_scaled, lambdaa_gnp, cond_numbers, ranks, r_true, loss_ord, base_dir)
-    
 
-    
+
 
 if __name__ == "__main__":
     
@@ -76,9 +71,8 @@ if __name__ == "__main__":
         
  
     r_true = 3
-    np.random.seed(seed=42)  
+    n_trial = 1
     
-    n_trial = 10
     T = 1000
     n = 30
     lambdaa_gnp  = 'Liwei'
@@ -87,8 +81,22 @@ if __name__ == "__main__":
     ranks_test = [3,20]
     cond_numbers_test = [1,1000]
     
-    experiment(r_true, ranks_test, cond_numbers_test, n, T, init_radius_ratio, loss_ord, lambdaa_gnp, lambdaa_scaled, n_trial)
+    d = 10 * n * r_true
+    base_dir = os.path.dirname(os.path.abspath(__file__))
     
+    if n_trial > 1:
+        
+        processes = [  Process(name=f"trial {trial}", target=partial(trial_execution, trial, n, r_true, d, cond_numbers_test, ranks_test, init_radius_ratio, T, loss_ord, lambdaa_scaled, lambdaa_gnp, base_dir))
+                    for trial in range(n_trial) ]  
     
- 
+        
+        a = list(map(lambda p: p.start(), processes)) #run processes
+        b = list(map(lambda p: p.join(), processes)) #join processes
+    else:
+        trial_execution(0, n, r_true, d, cond_numbers_test, ranks_test, init_radius_ratio, T, loss_ord, lambdaa_scaled, lambdaa_gnp, base_dir)
+        
+        
+    losses_scaled, losses_gnp = collect_compute_mean_losses(ranks_test, cond_numbers_test, loss_ord, r_true)
+    plot_losses_with_styles(losses_scaled, losses_gnp, lambdaa_scaled, lambdaa_gnp, cond_numbers_test, ranks_test, r_true, loss_ord, base_dir)
+
     
