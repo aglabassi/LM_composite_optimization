@@ -71,7 +71,7 @@ if __name__ == "__main__":
         
  
     r_true = 3
-    n_trial =30
+    n_trial = 30
     
     T = 1000
     n = 30
