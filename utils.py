@@ -12,7 +12,7 @@ import itertools
 from scipy.linalg import sqrtm
 import os
 
-def plot_losses_with_styles(losses_scaled, losses_gnp, lambdaa_scaled, lambdaa_gnp, cond_numbers, ranks, r_true, loss_ord, base_dir, num_dots=20):
+def plot_losses_with_styles(losses_scaled, losses_gnp, lambdaa_scaled, lambdaa_gnp, cond_numbers, ranks, r_true, loss_ord, base_dir, n_trial, num_dots=20):
     # Define color palettes for 'scaled' (blue family) and 'gn' (red family)
  
     blue_palette = ['#0d47a1', '#1976d2', '#2196f3', '#64b5f6', '#bbdefb']
@@ -24,8 +24,8 @@ def plot_losses_with_styles(losses_scaled, losses_gnp, lambdaa_scaled, lambdaa_g
     linestyles = ['-', '--', '-.', ':']  # Different linestyles for different ranks
     
     # Generate labels for plots
-    labels_scaled = [f'scaled, cond_n={c}, r={r}' for c in cond_numbers for r in ranks]
-    labels_gn = [f'gn, cond_n={c}, r={r}' for c in cond_numbers for r in ranks]
+    labels_scaled = [f'scaled, $\kappa=${c}, r={r}' for c in cond_numbers for r in ranks]
+    labels_gn = [f'gn, $\kappa=${c}, r={r}' for c in cond_numbers for r in ranks]
     labels = labels_scaled + labels_gn
 
     # Assign colors, markers, and linestyles
@@ -60,10 +60,10 @@ def plot_losses_with_styles(losses_scaled, losses_gnp, lambdaa_scaled, lambdaa_g
         
         # Add a dummy line to the list for creating a custom legend
         lines.append(plt.Line2D([0], [0], color=color, linestyle=linestyle, marker=marker, label=label))
-    
+    n_trial=10
     plt.title(f'Loss function for Matrix Recovery, $r^*={r_true}$, '
           f'$\\lambda_{{scaled}}={lambdaa_scaled}$, '
-          f'$\\lambda_{{gnp}}={lambdaa_gnp}$, loss=l{loss_ord}')
+          f'$\\lambda_{{gnp}}={lambdaa_gnp}$, loss=l{loss_ord}, $n_{{trial}}=${n_trial}')
     
     plt.xlabel('Iteration')
     plt.ylabel('Loss')
@@ -71,7 +71,7 @@ def plot_losses_with_styles(losses_scaled, losses_gnp, lambdaa_scaled, lambdaa_g
     
     # Create a custom legend
     plt.legend(handles=lines)
-    fig_path = os.path.join(base_dir, f'experiments/exp_l{loss_ord}.png')
+    fig_path = os.path.join(base_dir, f'experiments/exp_l{loss_ord}_n_trial_{n_trial}.png')
     plt.savefig(fig_path, dpi=300)
     plt.show()
 

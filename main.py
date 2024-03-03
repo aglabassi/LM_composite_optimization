@@ -71,7 +71,7 @@ if __name__ == "__main__":
         
  
     r_true = 3
-    n_trial = 1
+    n_trial =30
     
     T = 1000
     n = 30
@@ -97,6 +97,6 @@ if __name__ == "__main__":
         
         
     losses_scaled, losses_gnp = collect_compute_mean_losses(ranks_test, cond_numbers_test, loss_ord, r_true)
-    plot_losses_with_styles(losses_scaled, losses_gnp, lambdaa_scaled, lambdaa_gnp, cond_numbers_test, ranks_test, r_true, loss_ord, base_dir)
+    plot_losses_with_styles(losses_scaled, losses_gnp, lambdaa_scaled, lambdaa_gnp, cond_numbers_test, ranks_test, r_true, loss_ord, base_dir, n_trial)
 
     
