@@ -77,7 +77,7 @@ if __name__ == "__main__":
     
     T = 1000
     n = 30
-    np.seed(42)
+    np.random.seed(42)
     lambdaa_gnp  = 'Liwei'
     lambdaa_scaled = 'Liwei'
     init_radius_ratio = 0.1
