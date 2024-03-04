@@ -8,7 +8,6 @@ from utils import create_rip_transform, generate_matrix_with_condition, gen_rand
 def trial_execution(trials, n, r_true, d, cond_numbers, ranks, init_radius_ratio, T, loss_ord, lambdaa_scaled, lambdaa_gnp, base_dir):
     
     for trial in trials:
-        np.random.seed(trial)  # Ensure different seeds for different trials
         A, A_adj = create_rip_transform(n, d)
         losses_scaled_trial = []
         losses_gnp_trial = []
@@ -78,6 +77,7 @@ if __name__ == "__main__":
     
     T = 1000
     n = 30
+    np.seed(42)
     lambdaa_gnp  = 'Liwei'
     lambdaa_scaled = 'Liwei'
     init_radius_ratio = 0.1
@@ -88,6 +88,7 @@ if __name__ == "__main__":
     base_dir = os.path.dirname(os.path.abspath(__file__))
     
     if n_cpu > 1:
+        
         processes = [  Process(name=f"cpu {cpu}", target=partial(trial_execution, range(cpu*n_trial_div_n_cpu, (cpu+1)*n_trial_div_n_cpu), n, r_true, d, cond_numbers_test, ranks_test, init_radius_ratio, T, loss_ord, lambdaa_scaled, lambdaa_gnp, base_dir))
                     for cpu in range(n_cpu) ]  
     

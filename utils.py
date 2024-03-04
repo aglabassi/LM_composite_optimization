@@ -233,11 +233,11 @@ def matrix_recovery(X0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond
             print(f'Method           :  {method}')
             print(f'Cond. number     :  {cond_number}')
             print(f"r*, r            :  {(r_true, r)}")
-            print(f'h(c(X)) = {"(DIVERGE)" if(np.isnan(h(c(X)) ) or h(c(X)) > 2*h(c(X0))) else  h(c(X))}')
+            print(f'h(c(X)) = {"(DIVERGE)" if(np.isnan(h(c(X)) ) or  (h(c(X)) == np.inf) ) else  h(c(X))}')
             print('---------------------')
 
         
-        if np.isnan(h(c(X)) ) or h(c(X)) > 2*h(c(X0)):
+        if np.isnan(h(c(X)) ) or h(c(X)) == np.inf:
             losses.append(10**10)
         else:
             losses.append(h(c(X))/y_true.shape[0] )
