@@ -5,25 +5,27 @@ import numpy as np
 import glob
 from utils import create_rip_transform, generate_matrix_with_condition, gen_random_point_in_neighborhood, matrix_recovery, plot_losses_with_styles
 
-def trial_execution(trial, n, r_true, d, cond_numbers, ranks, init_radius_ratio, T, loss_ord, lambdaa_scaled, lambdaa_gnp, base_dir):
-    np.random.seed(trial)  # Ensure different seeds for different trials
-    A, A_adj = create_rip_transform(n, d)
-    losses_scaled_trial = []
-    losses_gnp_trial = []
+def trial_execution(trials, n, r_true, d, cond_numbers, ranks, init_radius_ratio, T, loss_ord, lambdaa_scaled, lambdaa_gnp, base_dir):
+    
+    for trial in trials:
+        np.random.seed(trial)  # Ensure different seeds for different trials
+        A, A_adj = create_rip_transform(n, d)
+        losses_scaled_trial = []
+        losses_gnp_trial = []
+    
+        for cond_number in cond_numbers:
+            X_true = generate_matrix_with_condition(n, r_true, cond_number)
+            M_true = X_true @ X_true.T
+            y_true = A(M_true)
+    
+            radius = init_radius_ratio*np.linalg.norm(X_true, ord='fro')
+    
+            for r in ranks:
+                X0 = gen_random_point_in_neighborhood(X_true, radius, r, r_true)
+                losses_scaled_trial.append(matrix_recovery(X0, M_true, T, A, A_adj, y_true, loss_ord, r_true, cond_number, lambdaa_scaled, 'scaled', base_dir, trial))
+                losses_gnp_trial.append(matrix_recovery(X0, M_true, T, A, A_adj, y_true, loss_ord, r_true, cond_number, lambdaa_gnp, 'gnp', base_dir, trial))
 
-    for cond_number in cond_numbers:
-        X_true = generate_matrix_with_condition(n, r_true, cond_number)
-        M_true = X_true @ X_true.T
-        y_true = A(M_true)
-
-        radius = init_radius_ratio*np.linalg.norm(X_true, ord='fro')
-
-        for r in ranks:
-            X0 = gen_random_point_in_neighborhood(X_true, radius, r, r_true)
-            losses_scaled_trial.append(matrix_recovery(X0, M_true, T, A, A_adj, y_true, loss_ord, r_true, cond_number, lambdaa_scaled, 'scaled', base_dir, trial))
-            losses_gnp_trial.append(matrix_recovery(X0, M_true, T, A, A_adj, y_true, loss_ord, r_true, cond_number, lambdaa_gnp, 'gnp', base_dir, trial))
-
-    return losses_scaled_trial, losses_gnp_trial
+    return 'we dont care'
 
 
 
@@ -72,7 +74,7 @@ if __name__ == "__main__":
  
     r_true = 3
     n_cpu = 10
-    n_trial = n_cpu*10
+    n_trial_div_n_cpu = 10
     
     T = 1000
     n = 30
@@ -85,22 +87,18 @@ if __name__ == "__main__":
     d = 10 * n * r_true
     base_dir = os.path.dirname(os.path.abspath(__file__))
     
-    if n_trial > 1:
+    if n_cpu > 1:
+        processes = [  Process(name=f"cpu {cpu}", target=partial(trial_execution, range(cpu*n_trial_div_n_cpu, (cpu+1)*n_trial_div_n_cpu), n, r_true, d, cond_numbers_test, ranks_test, init_radius_ratio, T, loss_ord, lambdaa_scaled, lambdaa_gnp, base_dir))
+                    for cpu in range(n_cpu) ]  
+    
         
-        for k in range(n_trial//n_cpu):
-            for trial in range(n_cpu*k, n_cpu*(k+1)):
-        
-                processes = [  Process(name=f"trial {trial}", target=partial(trial_execution, trial, n, r_true, d, cond_numbers_test, ranks_test, init_radius_ratio, T, loss_ord, lambdaa_scaled, lambdaa_gnp, base_dir))
-                            for trial in range(n_trial) ]  
-            
-                
-                a = list(map(lambda p: p.start(), processes)) #run processes
-                b = list(map(lambda p: p.join(), processes)) #join processes
+        a = list(map(lambda p: p.start(), processes)) #run processes
+        b = list(map(lambda p: p.join(), processes)) #join processes
     else:
-        trial_execution(0, n, r_true, d, cond_numbers_test, ranks_test, init_radius_ratio, T, loss_ord, lambdaa_scaled, lambdaa_gnp, base_dir)
+        trial_execution(range(0, n_trial_div_n_cpu), n, r_true, d, cond_numbers_test, ranks_test, init_radius_ratio, T, loss_ord, lambdaa_scaled, lambdaa_gnp, base_dir)
         
         
     losses_scaled, losses_gnp = collect_compute_mean_losses(ranks_test, cond_numbers_test, loss_ord, r_true)
-    plot_losses_with_styles(losses_scaled, losses_gnp, lambdaa_scaled, lambdaa_gnp, cond_numbers_test, ranks_test, r_true, loss_ord, base_dir, n_trial)
+    plot_losses_with_styles(losses_scaled, losses_gnp, lambdaa_scaled, lambdaa_gnp, cond_numbers_test, ranks_test, r_true, loss_ord, base_dir, n_trial_div_n_cpu*n_cpu)
 
     
