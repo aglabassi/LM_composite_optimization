@@ -71,7 +71,8 @@ if __name__ == "__main__":
         
  
     r_true = 3
-    n_trial = 30
+    n_cpu = 10
+    n_trial = n_cpu*10
     
     T = 1000
     n = 30
@@ -86,12 +87,15 @@ if __name__ == "__main__":
     
     if n_trial > 1:
         
-        processes = [  Process(name=f"trial {trial}", target=partial(trial_execution, trial, n, r_true, d, cond_numbers_test, ranks_test, init_radius_ratio, T, loss_ord, lambdaa_scaled, lambdaa_gnp, base_dir))
-                    for trial in range(n_trial) ]  
-    
+        for k in range(n_trial//n_cpu):
+            for trial in range(n_cpu*k, n_cpu*(k+1)):
         
-        a = list(map(lambda p: p.start(), processes)) #run processes
-        b = list(map(lambda p: p.join(), processes)) #join processes
+                processes = [  Process(name=f"trial {trial}", target=partial(trial_execution, trial, n, r_true, d, cond_numbers_test, ranks_test, init_radius_ratio, T, loss_ord, lambdaa_scaled, lambdaa_gnp, base_dir))
+                            for trial in range(n_trial) ]  
+            
+                
+                a = list(map(lambda p: p.start(), processes)) #run processes
+                b = list(map(lambda p: p.join(), processes)) #join processes
     else:
         trial_execution(0, n, r_true, d, cond_numbers_test, ranks_test, init_radius_ratio, T, loss_ord, lambdaa_scaled, lambdaa_gnp, base_dir)
         
