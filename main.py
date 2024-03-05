@@ -73,7 +73,7 @@ if __name__ == "__main__":
  
     r_true = 3
     n_cpu = 10
-    n_trial_div_n_cpu = 10
+    n_trial_div_n_cpu = 1
     
     T = 1000
     n = 30
