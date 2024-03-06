@@ -28,13 +28,13 @@ def trial_execution(trials, n, r_true, d, cond_numbers, ranks, init_radius_ratio
 
 
 
-def collect_compute_mean_losses(ranks, cond_numbers, loss_ord, r_true):
+def collect_compute_mean(ranks, cond_numbers, loss_ord, r_true, res):
     losses_scaled = []
     losses_gnp = []
     for rank in ranks:
         for cond_number in cond_numbers:
             for method in ['scaled', 'gnp']:
-                file_pattern = f"experiments/exp_{method}_l_{loss_ord}_r*={r_true}_r={rank}_condn={cond_number}_trial_*.csv"
+                file_pattern = f"experiments/{'res' if res else 'exp'}_{method}_l_{loss_ord}_r*={r_true}_r={rank}_condn={cond_number}_trial_*.csv"
                 file_list = glob.glob(file_pattern)
                 data_list = []
                 
@@ -99,7 +99,11 @@ if __name__ == "__main__":
         trial_execution(range(0, n_trial_div_n_cpu), n, r_true, d, cond_numbers_test, ranks_test, init_radius_ratio, T, loss_ord, lambdaa_scaled, lambdaa_gnp, base_dir)
         
         
-    losses_scaled, losses_gnp = collect_compute_mean_losses(ranks_test, cond_numbers_test, loss_ord, r_true)
-    plot_losses_with_styles(losses_scaled, losses_gnp, lambdaa_scaled, lambdaa_gnp, cond_numbers_test, ranks_test, r_true, loss_ord, base_dir, n_trial_div_n_cpu*n_cpu)
+    losses_scaled, losses_gnp = collect_compute_mean(ranks_test, cond_numbers_test, loss_ord, r_true, False)
+    res_scaled, res_gnp = collect_compute_mean(ranks_test, cond_numbers_test, loss_ord, r_true, True)
+    
+    plot_losses_with_styles(losses_scaled, losses_gnp, lambdaa_scaled, lambdaa_gnp, cond_numbers_test, ranks_test, r_true, loss_ord, base_dir, n_trial_div_n_cpu*n_cpu, False)
+    plot_losses_with_styles(res_scaled, res_gnp, lambdaa_scaled, lambdaa_gnp, cond_numbers_test, ranks_test, r_true, loss_ord, base_dir, n_trial_div_n_cpu*n_cpu, True)
 
+    
     

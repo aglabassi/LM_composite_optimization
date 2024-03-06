@@ -12,7 +12,7 @@ import itertools
 from scipy.linalg import sqrtm
 import os
 
-def plot_losses_with_styles(losses_scaled, losses_gnp, lambdaa_scaled, lambdaa_gnp, cond_numbers, ranks, r_true, loss_ord, base_dir, n_trial, num_dots=20):
+def plot_losses_with_styles(losses_scaled, losses_gnp, lambdaa_scaled, lambdaa_gnp, cond_numbers, ranks, r_true, loss_ord, base_dir, n_trial, res, num_dots=20):
     # Define color palettes for 'scaled' (blue family) and 'gn' (red family)
  
     blue_palette = ['#0d47a1', '#1976d2', '#2196f3', '#64b5f6', '#bbdefb']
@@ -60,10 +60,15 @@ def plot_losses_with_styles(losses_scaled, losses_gnp, lambdaa_scaled, lambdaa_g
         
         # Add a dummy line to the list for creating a custom legend
         lines.append(plt.Line2D([0], [0], color=color, linestyle=linestyle, marker=marker, label=label))
-        
-    plt.title(f'Loss function for Matrix Recovery, $r^*={r_true}$, '
-          f'$\\lambda_{{scaled}}={lambdaa_scaled}$, '
-          f'$\\lambda_{{gnp}}={lambdaa_gnp}$, loss=l{loss_ord}, $n_{{trial}}=${n_trial}')
+      
+    if not res:
+        plt.title(f'Loss function for Matrix Recovery, $r^*={r_true}$, '
+              f'$\\lambda_{{scaled}}={lambdaa_scaled}$, '
+              f'$\\lambda_{{gnp}}={lambdaa_gnp}$, loss=l{loss_ord}, $n_{{trial}}=${n_trial}')
+    else:
+        plt.title(f'$\\gamma^2 \| \\nabla^\dagger C v \|^2$, $r^*={r_true}$, '
+              f'$\\lambda_{{scaled}}={lambdaa_scaled}$, '
+              f'$\\lambda_{{gnp}}={lambdaa_gnp}$, loss=l{loss_ord}, $n_{{trial}}=${n_trial}')
     
     plt.xlabel('Iteration')
     plt.ylabel('Loss')
@@ -71,7 +76,7 @@ def plot_losses_with_styles(losses_scaled, losses_gnp, lambdaa_scaled, lambdaa_g
     
     # Create a custom legend
     plt.legend(handles=lines)
-    fig_path = os.path.join(base_dir, f'experiments/exp_l{loss_ord}_n_trial_{n_trial}.png')
+    fig_path = os.path.join(base_dir, f'experiments/{"res" if res else "exp"}_l{loss_ord}_n_trial_{n_trial}.png')
     plt.savefig(fig_path, dpi=300)
     plt.show()
 
@@ -223,6 +228,7 @@ def matrix_recovery(X0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond
 
     X = X0
     losses = []
+    resids = []
     jacob_c = jacobian_c(X)
 
     n,r = X.shape
@@ -282,12 +288,17 @@ def matrix_recovery(X0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond
         else:
             raise NotImplementedError
         
+        resids.append(gamma**2*np.sum( np.multiply(preconditionned_G)))
 
         X = X - gamma*preconditionned_G
     file_name = f'experiments/exp_{method}_l_{loss_ord}_r*={r_true}_r={X.shape[1]}_condn={cond_number}_trial_{trial}.csv'
     full_path = os.path.join(base_dir, file_name)
-
     np.savetxt(full_path, losses, delimiter=',') 
+    
+    file_name = f'experiments/res_{method}_l_{loss_ord}_r*={r_true}_r={X.shape[1]}_condn={cond_number}_trial_{trial}.csv'
+    full_path = os.path.join(base_dir, file_name)
+    
+    np.savetxt(full_path, resids, delimiter=',') 
     
     return losses
 
