@@ -73,7 +73,7 @@ if __name__ == "__main__":
  
     r_true = 3
     n_cpu = 10
-    n_trial_div_n_cpu = 10
+    n_trial_div_n_cpu = 1
     
     T = 1000
     n = 30
@@ -81,8 +81,8 @@ if __name__ == "__main__":
     lambdaa_gnp  = 'Liwei'
     lambdaa_scaled = 'Liwei'
     init_radius_ratio = 0.1
-    ranks_test = [3,20]
-    cond_numbers_test = [1,1000]
+    ranks_test = [3,5]
+    cond_numbers_test = [1]
     
     d = 10 * n * r_true
     base_dir = os.path.dirname(os.path.abspath(__file__))
