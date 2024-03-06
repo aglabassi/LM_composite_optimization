@@ -288,7 +288,7 @@ def matrix_recovery(X0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond
         else:
             raise NotImplementedError
         
-        resids.append(gamma**2*np.sum( np.multiply(preconditionned_G)))
+        resids.append(gamma**2*np.sum( np.multiply(preconditionned_G, preconditionned_G)))
 
         X = X - gamma*preconditionned_G
     file_name = f'experiments/exp_{method}_l_{loss_ord}_r*={r_true}_r={X.shape[1]}_condn={cond_number}_trial_{trial}.csv'
