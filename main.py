@@ -82,8 +82,8 @@ if __name__ == "__main__":
     lambdaa_gnp  = 'Liwei'
     lambdaa_scaled = 'Liwei'
     init_radius_ratio = 0.1
-    ranks_test = [3,5]
-    cond_numbers_test = [1]
+    ranks_test = [3,15]
+    cond_numbers_test = [1,1000]
     
     d = 10 * n * r_true
     base_dir = os.path.dirname(os.path.abspath(__file__))
