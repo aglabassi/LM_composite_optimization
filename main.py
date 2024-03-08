@@ -32,7 +32,8 @@ def collect_compute_mean(ranks, cond_numbers, loss_ord, r_true, res):
     losses_scaled = []
     losses_gnp = []
     for rank in ranks:
-        for cond_number in cond_numbers:
+    for cond_number in cond_numbers:
+        for rank in ranks:
             for method in ['scaled', 'gnp']:
                 file_pattern = f"experiments/{'res' if res else 'exp'}_{method}_l_{loss_ord}_r*={r_true}_r={rank}_condn={cond_number}_trial_*.csv"
                 file_list = glob.glob(file_pattern)
