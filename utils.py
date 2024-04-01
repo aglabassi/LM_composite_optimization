@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import itertools
 from scipy.linalg import sqrtm
 import os
+from scipy.linalg import svd
 
 def plot_losses_with_styles(losses_scaled, losses_gnp, lambdaa_scaled, lambdaa_gnp, cond_numbers, ranks, r_true, loss_ord, base_dir, n_trial, res, num_dots=20):
     # Define color palettes for 'scaled' (blue family) and 'gn' (red family)
@@ -146,6 +147,27 @@ def create_rip_transform(n, d):
     return transform, adjoint_transform
 
 
+
+def truncate_svd(matrix, k):
+    """
+    Perform truncated SVD on a matrix and return the truncated components.
+
+    Parameters:
+    - matrix: A 2D NumPy array.
+    - k: The number of singular values/vectors to keep.
+
+    Returns:
+    - U_k: A matrix with the top k left singular vectors.
+    - S_k: The top k singular values.
+    - VT_k: A matrix with the top k right singular vectors, transposed.
+    """
+    U, S, VT = svd(matrix, full_matrices=False)
+    U_k = U[:, :k]
+    S_k = S[:k]
+    VT_k = VT[:k, :]
+    S_k_diag = np.diag(S_k)
+    
+    return np.dot(U_k, np.dot(S_k_diag, VT_k))
 
 
 
