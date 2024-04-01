@@ -73,15 +73,15 @@ if __name__ == "__main__":
  
     r_true = 3
     n_cpu = 10
-    n_trial_div_n_cpu = 11
+    n_trial_div_n_cpu = 1
     
-    T = 300
-    n = 50
+    T = 1000
+    n = 40
     np.random.seed(42)
     lambdaa_gnp  = 'Liwei'
     lambdaa_scaled = 'Liwei'
     init_radius_ratio = 0.01
-    ranks_test = [3,20,49]
+    ranks_test = [3,20,39]
     cond_numbers_test = [1]
     
     d = 10 * n * r_true
