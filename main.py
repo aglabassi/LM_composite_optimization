@@ -72,17 +72,17 @@ if __name__ == "__main__":
         
  
     r_true = 3
-    n_cpu = 1
-    n_trial_div_n_cpu = 1
+    n_cpu = 10
+    n_trial_div_n_cpu = 11
     
-    T = 1000
-    n = 100
+    T = 300
+    n = 50
     np.random.seed(42)
     lambdaa_gnp  = 'Liwei'
     lambdaa_scaled = 'Liwei'
     init_radius_ratio = 0.01
-    ranks_test = [3,20,99]
-    cond_numbers_test = [1,1000]
+    ranks_test = [3,20,49]
+    cond_numbers_test = [1]
     
     d = 10 * n * r_true
     base_dir = os.path.dirname(os.path.abspath(__file__))
