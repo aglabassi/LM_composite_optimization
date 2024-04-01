@@ -268,7 +268,7 @@ def matrix_recovery(X0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond
         if np.isnan(h(c(X)) ) or h(c(X)) == np.inf:
             losses.append(10**10)
         else:
-            losses.append(h(c(X))/y_true.shape[0] )
+            losses.append(np.linalg.norm(c(X) - M_star))
         
         update_jacobian_c(jacob_c, X)
         
@@ -311,9 +311,9 @@ def matrix_recovery(X0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond
             raise NotImplementedError
         
         if method == 'gnp':
-            resids.append(gamma**2*np.sum( np.multiply(preconditionned_G, preconditionned_G)))
+            resids.append(np.linalg.norm(c(X)  -truncate_svd(c(X), r_true))  )
         else:
-            resids.append(1)
+            resids.append(np.linalg.norm(c(X)  -truncate_svd(c(X), r_true))  )
         X = X - gamma*preconditionned_G
     file_name = f'experiments/exp_{method}_l_{loss_ord}_r*={r_true}_r={X.shape[1]}_condn={cond_number}_trial_{trial}.csv'
     full_path = os.path.join(base_dir, file_name)
