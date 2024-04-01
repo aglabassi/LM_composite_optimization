@@ -81,7 +81,7 @@ if __name__ == "__main__":
     lambdaa_gnp  = 'Liwei'
     lambdaa_scaled = 'Liwei'
     init_radius_ratio = 0.01
-    ranks_test = [3,20,99]
+    ranks_test = [3,99]
     cond_numbers_test = [1]
     
     d = 10 * n * r_true
