@@ -67,23 +67,23 @@ if __name__ == "__main__":
             print("Please provide an integer value for loss_ord.")
             sys.exit(1)
     else:
-        loss_ord = 1  # Default value if not provided
+        loss_ord = 2  # Default value if not provided
         print(f"No loss_ord provided, using default value of {loss_ord}.")
 
         
  
     r_true = 3
-    n_cpu = 10
+    n_cpu = 1
     n_trial_div_n_cpu = 1
     
     T = 1000
-    n = 30
+    n = 100
     np.random.seed(42)
     lambdaa_gnp  = 'Liwei'
     lambdaa_scaled = 'Liwei'
-    init_radius_ratio = 0.1
-    ranks_test = [3,15]
-    cond_numbers_test = [1,1000]
+    init_radius_ratio = 0.01
+    ranks_test = [3,20,99]
+    cond_numbers_test = [1]
     
     d = 10 * n * r_true
     base_dir = os.path.dirname(os.path.abspath(__file__))
