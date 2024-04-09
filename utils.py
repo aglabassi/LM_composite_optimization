@@ -177,8 +177,25 @@ def matrix_recovery(X0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond
     def c(x):
         return x @ x.T 
 
+    #weight_vector  = np.random.rand(y_true.shape[0])*4+1
+    #weight_vector  = np.ones(y_true.shape[0]) #for modified L1
+    
+    #for modified L2
+    tmp = np.random.rand(y_true.shape[0], y_true.shape[0])
+    t1,_,_ = np.linalg.svd(tmp)
+    B = t1 @ np.diag(np.random.randint(1,2,size=y_true.shape[0])) @ t1.T
+    B = np.eye(y_true.shape[0], y_true.shape[0])
+    
     def h(M):
-        return (np.linalg.norm(A(M)-y_true,ord=loss_ord)**loss_ord)/loss_ord
+        
+        #modified l1 norm
+        #return np.dot(weight_vector, np.abs(A(M) - y_true))
+    
+        #square root of l2 norm    
+        return np.sqrt((A(M) - y_true) @ B @(A(M) - y_true) )
+        
+        #classic norms
+        #return (np.linalg.norm(A(M)-y_true,ord=loss_ord)**loss_ord)/loss_ord
 
 
 
@@ -229,17 +246,16 @@ def matrix_recovery(X0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond
         
     def subdifferential_h(M):
         
-        residual = A(M) - y_true
+        residual = (A(M) - y_true)
         
         transformation_matrix = A.__closure__[0].cell_contents  # Extract the transformation matrix used in A
         adjoint_A = transformation_matrix.T  # Adjoint (transpose) of the transformation matrix
         
 
     
-        subdiff = np.sign(residual) 
         
         if loss_ord == 1:
-            v = np.dot(adjoint_A, subdiff)
+            v = np.dot(adjoint_A, B@residual/(2*h(M)) )
         elif loss_ord == 2:
             v = np.dot(adjoint_A, residual)
 
@@ -268,7 +284,7 @@ def matrix_recovery(X0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond
         if np.isnan(h(c(X)) ) or h(c(X)) == np.inf:
             losses.append(10**10)
         else:
-            losses.append(np.linalg.norm(c(X) - M_star))
+            losses.append(h(c(X)))
         
         update_jacobian_c(jacob_c, X)
         
@@ -279,10 +295,11 @@ def matrix_recovery(X0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond
         
         dampling = lambdaa if lambdaa != 'Liwei' else np.linalg.norm(c(X) - M_star, ord='fro')
         
-            
+        dampling =  dampling
         if method=='scaled':
             try:
-                residual = (A(X@X.T) - y_true) if loss_ord==2 else np.sign(A(X@X.T) - y_true)
+                residual = (A(X@X.T) - y_true) if loss_ord==2 else  B@(A(X@X.T) - y_true)/(2*h(X@X.T))
+              
                 try:
                     precondionner_inv =  np.linalg.inv(X.T@X + dampling*np.eye(r,r))
                 except:
@@ -310,11 +327,26 @@ def matrix_recovery(X0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond
         else:
             raise NotImplementedError
         
-        if method == 'gnp':
-            resids.append(np.linalg.norm(c(X)  -truncate_svd(c(X), r_true))  )
-        else:
-            resids.append(np.linalg.norm(c(X)  -truncate_svd(c(X), r_true))  )
+        
+        #Auxiliary thing to plot
+        # if method == 'gnp':
+        #     U,s, V_t = np.linalg.svd(jacob_c)
+        #     D = np.zeros((U.shape[1], U.shape[1]))
+        #     np.fill_diagonal(D, s**2/(s**2+(dampling)))
+        #     P_k = U@D@U.T
+
+           
+        #     proj_perp = (np.eye(P_k.shape[0], P_k.shape[1]) -P_k)@((c(X) - M_star).reshape(-1))
+            
+        #     proj = P_k@((c(X) - M_star).reshape(-1))
+            
+        #     full = (c(X) - M_star).reshape(-1)
+        #     resids.append(np.linalg.norm((proj_perp))/np.linalg.norm(full))
+        # else:
+        #     resids.append(1)
         X = X - gamma*preconditionned_G
+        
+        
     file_name = f'experiments/exp_{method}_l_{loss_ord}_r*={r_true}_r={X.shape[1]}_condn={cond_number}_trial_{trial}.csv'
     full_path = os.path.join(base_dir, file_name)
     np.savetxt(full_path, losses, delimiter=',') 
