@@ -13,7 +13,7 @@ from scipy.linalg import sqrtm
 import os
 from scipy.linalg import svd
 
-def plot_losses_with_styles(losses_scaled, losses_gnp, lambdaa_scaled, lambdaa_gnp, cond_numbers, ranks, r_true, loss_ord, base_dir, n_trial, res, num_dots=20):
+def plot_losses_with_styles(losses_scaled, losses_gnp, lambdaa_scaled, lambdaa_gnp, cond_numbers, ranks, r_true, loss_ord, base_dir, n_trial, res, symmetric, num_dots=20):
     # Define color palettes for 'scaled' (blue family) and 'gn' (red family)
  
     blue_palette = ['#0d47a1', '#1976d2', '#2196f3', '#64b5f6', '#bbdefb']
@@ -27,7 +27,10 @@ def plot_losses_with_styles(losses_scaled, losses_gnp, lambdaa_scaled, lambdaa_g
     # Generate labels for plots
     labels_scaled = [f'scaled, cond_n={c}, r={r}' for c in cond_numbers for r in ranks]
     labels_gn = [f'gn, cond_n={c}, r={r}' for c in cond_numbers for r in ranks]
-    labels = labels_scaled + labels_gn
+    if symmetric:
+        labels = labels_scaled + labels_gn
+    else :
+        labels = labels_gn
 
     # Assign colors, markers, and linestyles
     blue_colors_cycle = itertools.cycle(blue_palette)
@@ -414,7 +417,7 @@ def matrix_recovery_assymetric(X0, Y0, M_star, n_iter, A, A_adj, y_true, loss_or
         dampling = lambdaa if lambdaa != 'Liwei' else np.linalg.norm(c(X,Y) - M_star, ord='fro')
         
       
-        if method=='gnp':
+        if method=='gnp' or method=='scaled':
             
             try:
                 preconditionned_g_x, _,_,_ = np.linalg.lstsq(jac_x.T @ jac_x + dampling*np.eye(jac_x.shape[1],jac_x.shape[1]), g_x, rcond=-1)
@@ -427,7 +430,7 @@ def matrix_recovery_assymetric(X0, Y0, M_star, n_iter, A, A_adj, y_true, loss_or
             preconditionned_G_y = preconditionned_g_y.reshape(n,r)
             aux_x = (jac_x @ preconditionned_g_x) if loss_ord == 1 else 'we dont care'
             aux_y = (jac_y @ preconditionned_g_y) if loss_ord == 1 else 'we dont care'
-            gamma = (h(c(X,Y)) - 0) /(2*( np.dot(aux_x,aux_x) + np.dot(aux_y,aux_y) ) )if loss_ord == 1 else 0.00000001
+            gamma = (h(c(X,Y)) - 0) /(2*( np.dot(aux_x,aux_x) + np.dot(aux_y,aux_y) ) )if loss_ord == 1 else 0.000001
                       
 
         else:

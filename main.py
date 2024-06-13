@@ -35,7 +35,7 @@ def trial_execution(trials, n, r_true, d, cond_numbers, ranks, init_radius_ratio
                     losses_scaled_trial.append(matrix_recovery(X0, M_true, T, A, A_adj, y_true, loss_ord, r_true, cond_number, lambdaa_scaled, 'scaled', base_dir, trial))
                     losses_gnp_trial.append(matrix_recovery(X0, M_true, T, A, A_adj, y_true, loss_ord, r_true, cond_number, lambdaa_gnp, 'gnp', base_dir, trial))
                 else:
-                    losses_scaled_trial.append(matrix_recovery_assymetric(X0, Y0, M_true, T, A, A_adj, y_true, loss_ord, r_true, cond_number, lambdaa_scaled, 'gnp', base_dir, trial))
+                    losses_scaled_trial.append(matrix_recovery_assymetric(X0, Y0, M_true, T, A, A_adj, y_true, loss_ord, r_true, cond_number, lambdaa_scaled, 'scaled', base_dir, trial))
                     losses_gnp_trial.append(matrix_recovery_assymetric(X0, Y0, M_true, T, A, A_adj, y_true, loss_ord, r_true, cond_number, lambdaa_gnp, 'gnp', base_dir, trial))
                    
     return 'we dont care'
@@ -80,7 +80,7 @@ if __name__ == "__main__":
             print("Please provide an integer value for loss_ord.")
             sys.exit(1)
     else:
-        loss_ord = 2 # Default value if not provided
+        loss_ord = 1 # Default value if not provided
         print(f"No loss_ord provided, using default value of {loss_ord}.")
 
         
@@ -117,8 +117,8 @@ if __name__ == "__main__":
     losses_scaled, losses_gnp = collect_compute_mean(ranks_test, cond_numbers_test, loss_ord, r_true, False)
     res_scaled, res_gnp = collect_compute_mean(ranks_test, cond_numbers_test, loss_ord, r_true, True)
     
-    plot_losses_with_styles(losses_scaled, losses_gnp, lambdaa_scaled, lambdaa_gnp, cond_numbers_test, ranks_test, r_true, loss_ord, base_dir, n_trial_div_n_cpu*n_cpu, False)
-    plot_losses_with_styles(res_scaled, res_gnp, lambdaa_scaled, lambdaa_gnp, cond_numbers_test, ranks_test, r_true, loss_ord, base_dir, n_trial_div_n_cpu*n_cpu, True)
+    plot_losses_with_styles(losses_scaled, losses_gnp, lambdaa_scaled, lambdaa_gnp, cond_numbers_test, ranks_test, r_true, loss_ord, base_dir, n_trial_div_n_cpu*n_cpu, False, symmetric)
+    plot_losses_with_styles(res_scaled, res_gnp, lambdaa_scaled, lambdaa_gnp, cond_numbers_test, ranks_test, r_true, loss_ord, base_dir, n_trial_div_n_cpu*n_cpu, True, symmetric)
 
     
     
