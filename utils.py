@@ -328,6 +328,122 @@ def matrix_recovery(X0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond
 
 
 
+def matrix_recovery_assymetric(X0, Y0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond_number, lambdaa, method, base_dir, trial):
+    
+    def c(X,Y):
+        return X @ Y.T 
+
+    def h(M):
+        return (np.linalg.norm(A(M)-y_true,ord=loss_ord)**loss_ord)/loss_ord
 
 
 
+    #X Y^T flattened jacobian
+    def jacobian_c(X,Y):
+        
+        n, r = X.shape
+        jac_x = np.zeros((n*n, n*r))
+        jac_y = np.zeros((n*n, n*r))
+        
+        for i in range(n):
+            for j in range(n):
+                for l in range(r):
+                    jac_x[i*n + j, i*r + l] = Y[j, l]
+                    
+        
+        for i in range(n):
+            for j in range(n):
+                    for l in range(r):
+                        jac_y[i*n + j, j*r + l] = X[i, l]
+                    
+        
+      
+        return jac_x, jac_y
+        
+        
+    def subdifferential_h(M):
+        
+        residual = A(M) - y_true
+        
+        transformation_matrix = A.__closure__[0].cell_contents  # Extract the transformation matrix used in A
+        adjoint_A = transformation_matrix.T  # Adjoint (transpose) of the transformation matrix
+        
+
+    
+        subdiff = np.sign(residual) 
+        
+        if loss_ord == 1:
+            v = np.dot(adjoint_A, subdiff)
+        elif loss_ord == 2:
+            v = np.dot(adjoint_A, residual)
+
+        
+
+        return v # n^2 dimension
+    
+    X = X0
+    Y = Y0
+    losses = []
+    resids = []
+
+    n,r = X.shape
+    for t in range(n_iter):
+        
+        if t%20 ==0:
+            print(f'Iteration number :  {t}')
+            print(f'Method           :  {method}')
+            print(f'Cond. number     :  {cond_number}')
+            print(f"r*, r            :  {(r_true, r)}")
+            print(f'h(c(X,Y)) = {"(DIVERGE)" if(np.isnan(h(c(X,Y)) ) or  (h(c(X,Y)) == np.inf) ) else  h(c(X,Y))}')
+            print('---------------------')
+
+        
+        if np.isnan(h(c(X,Y)) ) or h(c(X,Y)) == np.inf:
+            losses.append(10**10)
+        else:
+            losses.append(np.linalg.norm(c(X,Y) - M_star))
+        
+        jac_x, jac_y = jacobian_c(X, Y)
+        
+        
+        v = subdifferential_h(c(X,Y))
+        
+        g_x = jac_x.T @ v
+        g_y = jac_y.T @ v
+        
+        dampling = lambdaa if lambdaa != 'Liwei' else np.linalg.norm(c(X,Y) - M_star, ord='fro')
+        
+      
+        if method=='gnp':
+            
+            try:
+                preconditionned_g_x, _,_,_ = np.linalg.lstsq(jac_x.T @ jac_x + dampling*np.eye(jac_x.shape[1],jac_x.shape[1]), g_x, rcond=-1)
+                preconditionned_g_y, _,_,_ = np.linalg.lstsq(jac_y.T @ jac_y + dampling*np.eye(jac_y.shape[1],jac_y.shape[1]), g_y, rcond=-1)
+            except:
+                preconditionned_g_x = g_x #No precondionning 
+                preconditionned_g_y = g_y
+                
+            preconditionned_G_x = preconditionned_g_x.reshape(n,r)
+            preconditionned_G_y = preconditionned_g_y.reshape(n,r)
+            aux_x = (jac_x @ preconditionned_g_x) if loss_ord == 1 else 'we dont care'
+            aux_y = (jac_y @ preconditionned_g_y) if loss_ord == 1 else 'we dont care'
+            gamma = (h(c(X,Y)) - 0) /(2*( np.dot(aux_x,aux_x) + np.dot(aux_y,aux_y) ) )if loss_ord == 1 else 0.00000001
+                      
+
+        else:
+            raise NotImplementedError
+        
+     
+        X = X - gamma*preconditionned_G_x
+        Y = Y - gamma*preconditionned_G_y
+        
+    file_name = f'experiments/exp_{method}_l_{loss_ord}_r*={r_true}_r={X.shape[1]}_condn={cond_number}_trial_{trial}.csv'
+    full_path = os.path.join(base_dir, file_name)
+    np.savetxt(full_path, losses, delimiter=',') 
+    
+    file_name = f'experiments/res_{method}_l_{loss_ord}_r*={r_true}_r={X.shape[1]}_condn={cond_number}_trial_{trial}.csv'
+    full_path = os.path.join(base_dir, file_name)
+    
+    np.savetxt(full_path, resids, delimiter=',') 
+    
+    return losses

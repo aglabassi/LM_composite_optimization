@@ -3,9 +3,9 @@ from functools import partial
 from multiprocessing import Process
 import numpy as np
 import glob
-from utils import create_rip_transform, generate_matrix_with_condition, gen_random_point_in_neighborhood, matrix_recovery, plot_losses_with_styles
+from utils import create_rip_transform, generate_matrix_with_condition, gen_random_point_in_neighborhood, matrix_recovery, plot_losses_with_styles,matrix_recovery_assymetric
 
-def trial_execution(trials, n, r_true, d, cond_numbers, ranks, init_radius_ratio, T, loss_ord, lambdaa_scaled, lambdaa_gnp, base_dir):
+def trial_execution(trials, n, r_true, d, cond_numbers, ranks, init_radius_ratio, T, loss_ord, lambdaa_scaled, lambdaa_gnp, base_dir, symmetric=True):
     
     for trial in trials:
         A, A_adj = create_rip_transform(n, d)
@@ -14,16 +14,30 @@ def trial_execution(trials, n, r_true, d, cond_numbers, ranks, init_radius_ratio
     
         for cond_number in cond_numbers:
             X_true = generate_matrix_with_condition(n, r_true, cond_number)
-            M_true = X_true @ X_true.T
+            Y_true = generate_matrix_with_condition(n, r_true, cond_number)
+            
+            if symmetric:
+                M_true =  X_true @ X_true.T
+            else:
+                M_true = X_true @ Y_true.T
+            print(np.linalg.matrix_rank(M_true))
+                
             y_true = A(M_true)
     
-            radius = init_radius_ratio*np.linalg.norm(X_true, ord='fro')
+            radius_x = init_radius_ratio*np.linalg.norm(X_true, ord='fro')
+            radius_y = init_radius_ratio*np.linalg.norm(Y_true, ord='fro')
     
             for r in ranks:
-                X0 = gen_random_point_in_neighborhood(X_true, radius, r, r_true)
-                losses_scaled_trial.append(matrix_recovery(X0, M_true, T, A, A_adj, y_true, loss_ord, r_true, cond_number, lambdaa_scaled, 'scaled', base_dir, trial))
-                losses_gnp_trial.append(matrix_recovery(X0, M_true, T, A, A_adj, y_true, loss_ord, r_true, cond_number, lambdaa_gnp, 'gnp', base_dir, trial))
-
+                X0 = gen_random_point_in_neighborhood(X_true, radius_x, r, r_true)
+                Y0 = gen_random_point_in_neighborhood(Y_true, radius_y, r, r_true)
+                
+                if symmetric:
+                    losses_scaled_trial.append(matrix_recovery(X0, M_true, T, A, A_adj, y_true, loss_ord, r_true, cond_number, lambdaa_scaled, 'scaled', base_dir, trial))
+                    losses_gnp_trial.append(matrix_recovery(X0, M_true, T, A, A_adj, y_true, loss_ord, r_true, cond_number, lambdaa_gnp, 'gnp', base_dir, trial))
+                else:
+                    losses_scaled_trial.append(matrix_recovery_assymetric(X0, Y0, M_true, T, A, A_adj, y_true, loss_ord, r_true, cond_number, lambdaa_scaled, 'gnp', base_dir, trial))
+                    losses_gnp_trial.append(matrix_recovery_assymetric(X0, Y0, M_true, T, A, A_adj, y_true, loss_ord, r_true, cond_number, lambdaa_gnp, 'gnp', base_dir, trial))
+                   
     return 'we dont care'
 
 
@@ -66,37 +80,38 @@ if __name__ == "__main__":
             print("Please provide an integer value for loss_ord.")
             sys.exit(1)
     else:
-        loss_ord = 2  # Default value if not provided
+        loss_ord = 2 # Default value if not provided
         print(f"No loss_ord provided, using default value of {loss_ord}.")
 
         
  
     r_true = 3
-    n_cpu = 10
+    n_cpu = 1
     n_trial_div_n_cpu = 1
     
     T = 1000
-    n = 40
+    n = 30
     np.random.seed(42)
     lambdaa_gnp  = 'Liwei'
     lambdaa_scaled = 'Liwei'
     init_radius_ratio = 0.01
-    ranks_test = [3,20,39]
-    cond_numbers_test = [1]
+    ranks_test = [3,15]
+    cond_numbers_test = [1,1000]
+    symmetric=False
     
     d = 10 * n * r_true
     base_dir = os.path.dirname(os.path.abspath(__file__))
     
     if n_cpu > 1:
         
-        processes = [  Process(name=f"cpu {cpu}", target=partial(trial_execution, range(cpu*n_trial_div_n_cpu, (cpu+1)*n_trial_div_n_cpu), n, r_true, d, cond_numbers_test, ranks_test, init_radius_ratio, T, loss_ord, lambdaa_scaled, lambdaa_gnp, base_dir))
+        processes = [  Process(name=f"cpu {cpu}", target=partial(trial_execution, range(cpu*n_trial_div_n_cpu, (cpu+1)*n_trial_div_n_cpu), n, r_true, d, cond_numbers_test, ranks_test, init_radius_ratio, T, loss_ord, lambdaa_scaled, lambdaa_gnp, base_dir, symmetric))
                     for cpu in range(n_cpu) ]  
     
         
         a = list(map(lambda p: p.start(), processes)) #run processes
         b = list(map(lambda p: p.join(), processes)) #join processes
     else:
-        trial_execution(range(0, n_trial_div_n_cpu), n, r_true, d, cond_numbers_test, ranks_test, init_radius_ratio, T, loss_ord, lambdaa_scaled, lambdaa_gnp, base_dir)
+        trial_execution(range(0, n_trial_div_n_cpu), n, r_true, d, cond_numbers_test, ranks_test, init_radius_ratio, T, loss_ord, lambdaa_scaled, lambdaa_gnp, base_dir, symmetric)
         
         
     losses_scaled, losses_gnp = collect_compute_mean(ranks_test, cond_numbers_test, loss_ord, r_true, False)
