@@ -80,7 +80,7 @@ if __name__ == "__main__":
             print("Please provide an integer value for loss_ord.")
             sys.exit(1)
     else:
-        loss_ord = 1 # Default value if not provided
+        loss_ord = 2 # Default value if not provided
         print(f"No loss_ord provided, using default value of {loss_ord}.")
 
         
@@ -88,16 +88,16 @@ if __name__ == "__main__":
     r_true = 3
     n_cpu = 1
     n_trial_div_n_cpu = 1
-    
+    !rm experiments/*.csv
     T = 1000
     n = 30
     np.random.seed(42)
     lambdaa_gnp  = 'Liwei'
     lambdaa_scaled = 'Liwei'
     init_radius_ratio = 0.01
-    ranks_test = [3,15]
-    cond_numbers_test = [1,1000]
-    symmetric=False
+    ranks_test = [3,10]
+    cond_numbers_test = [1,100]
+    symmetric= True
     
     d = 10 * n * r_true
     base_dir = os.path.dirname(os.path.abspath(__file__))

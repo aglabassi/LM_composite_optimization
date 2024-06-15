@@ -25,8 +25,8 @@ def plot_losses_with_styles(losses_scaled, losses_gnp, lambdaa_scaled, lambdaa_g
     linestyles = ['-', '--', '-.', ':']  # Different linestyles for different ranks
     
     # Generate labels for plots
-    labels_scaled = [f'scaled, cond_n={c}, r={r}' for c in cond_numbers for r in ranks]
-    labels_gn = [f'gn, cond_n={c}, r={r}' for c in cond_numbers for r in ranks]
+    labels_scaled = [f'scaled, r={r}, cond_n={c}' for c in cond_numbers for r in ranks]
+    labels_gn = [f'gn, r={r}, cond_n={c}' for c in cond_numbers for r in ranks]
     if symmetric:
         labels = labels_scaled + labels_gn
     else :
@@ -47,7 +47,7 @@ def plot_losses_with_styles(losses_scaled, losses_gnp, lambdaa_scaled, lambdaa_g
     lines = []  # To store line objects for the legend
     for i, label in enumerate(labels):
         color = plot_colors[i]
-        cond_n, r = label.split(',')[1].strip(), label.split(',')[2].strip()
+        cond_n, r = label.split(',')[2].strip(), label.split(',')[1].strip()
         marker = plot_markers[int(cond_n.split('=')[1])]
         linestyle = plot_linestyles[int(r.split('=')[1])]
         
@@ -66,17 +66,26 @@ def plot_losses_with_styles(losses_scaled, losses_gnp, lambdaa_scaled, lambdaa_g
         lines.append(plt.Line2D([0], [0], color=color, linestyle=linestyle, marker=marker, label=label))
       
     if not res:
-        plt.title(f'Loss function for Matrix Recovery, $r^*={r_true}$, '
-              f'$\\lambda_{{scaled}}={lambdaa_scaled}$, '
-              f'$\\lambda_{{gnp}}={lambdaa_gnp}$, loss=l{loss_ord}, $n_{{trial}}=${n_trial}')
+        plt.title(f'Matrix Recovery with l{loss_ord} norm, {("BM" if symmetric else "assymetric") + " factor"}, $r^*={r_true}$')
     else:
         plt.title(f'$\\gamma^2 \| \\nabla^\dagger C v \|^2$, $r^*={r_true}$, '
               f'$\\lambda_{{scaled}}={lambdaa_scaled}$, '
               f'$\\lambda_{{gnp}}={lambdaa_gnp}$, loss=l{loss_ord}, $n_{{trial}}=${n_trial}')
     
     plt.xlabel('Iteration')
-    plt.ylabel('Loss')
+    plt.ylabel('Distance to M*')
     plt.yscale('log')
+    
+    lines[1], lines[2] = lines[2], lines[1]
+
+    labels[1], labels[2] = labels[2], labels[1]
+    
+    if symmetric:
+        lines[5], lines[6] = lines[6], lines[5]
+
+        labels[5], labels[6] = labels[6], labels[5]
+        
+
     
     # Create a custom legend
     plt.legend(handles=lines)
@@ -251,7 +260,7 @@ def matrix_recovery(X0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond
         return v # n^2 dimension
 
 
-    X = X0
+    X = X0.copy()
     losses = []
     resids = []
     jacob_c = jacobian_c(X)
@@ -260,6 +269,7 @@ def matrix_recovery(X0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond
     for t in range(n_iter):
         
         if t%20 ==0:
+            print("symmetric")
             print(f'Iteration number :  {t}')
             print(f'Method           :  {method}')
             print(f'Cond. number     :  {cond_number}')
@@ -271,7 +281,7 @@ def matrix_recovery(X0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond
         if np.isnan(h(c(X)) ) or h(c(X)) == np.inf:
             losses.append(10**10)
         else:
-            losses.append(np.linalg.norm(c(X) - M_star))
+            losses.append(np.linalg.norm(c(X) - M_star)/np.linalg.norm(c(X0) - M_star))
         
         update_jacobian_c(jacob_c, X)
         
@@ -384,8 +394,8 @@ def matrix_recovery_assymetric(X0, Y0, M_star, n_iter, A, A_adj, y_true, loss_or
 
         return v # n^2 dimension
     
-    X = X0
-    Y = Y0
+    X = X0.copy()
+    Y = Y0.copy()
     losses = []
     resids = []
 
@@ -393,6 +403,7 @@ def matrix_recovery_assymetric(X0, Y0, M_star, n_iter, A, A_adj, y_true, loss_or
     for t in range(n_iter):
         
         if t%20 ==0:
+            print("assymetric")
             print(f'Iteration number :  {t}')
             print(f'Method           :  {method}')
             print(f'Cond. number     :  {cond_number}')
@@ -404,7 +415,7 @@ def matrix_recovery_assymetric(X0, Y0, M_star, n_iter, A, A_adj, y_true, loss_or
         if np.isnan(h(c(X,Y)) ) or h(c(X,Y)) == np.inf:
             losses.append(10**10)
         else:
-            losses.append(np.linalg.norm(c(X,Y) - M_star))
+            losses.append(np.linalg.norm(c(X,Y) - M_star)/(np.linalg.norm(c(X0,Y0) - M_star)))
         
         jac_x, jac_y = jacobian_c(X, Y)
         
