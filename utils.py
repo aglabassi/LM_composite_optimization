@@ -27,10 +27,9 @@ def plot_losses_with_styles(losses_scaled, losses_gnp, lambdaa_scaled, lambdaa_g
     # Generate labels for plots
     labels_scaled = [f'scaled, r={r}, cond_n={c}' for c in cond_numbers for r in ranks]
     labels_gn = [f'gn, r={r}, cond_n={c}' for c in cond_numbers for r in ranks]
-    if symmetric:
-        labels = labels_scaled + labels_gn
-    else :
-        labels = labels_gn
+
+    labels = labels_scaled + labels_gn
+
 
     # Assign colors, markers, and linestyles
     blue_colors_cycle = itertools.cycle(blue_palette)
@@ -80,11 +79,11 @@ def plot_losses_with_styles(losses_scaled, losses_gnp, lambdaa_scaled, lambdaa_g
 
     labels[1], labels[2] = labels[2], labels[1]
     
-    if symmetric:
-        lines[5], lines[6] = lines[6], lines[5]
 
-        labels[5], labels[6] = labels[6], labels[5]
-        
+    lines[5], lines[6] = lines[6], lines[5]
+
+    labels[5], labels[6] = labels[6], labels[5]
+    
 
     
     # Create a custom legend
@@ -293,7 +292,7 @@ def matrix_recovery(X0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond
         dampling = lambdaa if lambdaa != 'Liwei' else np.linalg.norm(c(X) - M_star, ord='fro')
         
             
-        if method=='scaled':
+        if method=='scaled':#PAPER: Low-Rank Matrix Recovery with Scaled Subgradient Methods
             try:
                 residual = (A(X@X.T) - y_true) if loss_ord==2 else np.sign(A(X@X.T) - y_true)
                 try:
@@ -301,7 +300,7 @@ def matrix_recovery(X0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond
                 except:
                     precondionner_inv =  np.eye(r,r)
                 
-                G =  A_adj(residual)@ X
+                G = g.reshape(*X.shape)
                 preconditionned_G = G @ precondionner_inv
                 aux = G @ sqrtm(precondionner_inv) if loss_ord==1 else 'we dont care'
                 gamma = (h(c(X)) - 0) / np.sum(np.multiply(aux,aux)) if loss_ord == 1 else 0.000001
@@ -328,6 +327,7 @@ def matrix_recovery(X0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond
         else:
             resids.append(np.linalg.norm(c(X)  -truncate_svd(c(X), r_true))  )
         X = X - gamma*preconditionned_G
+        
     file_name = f'experiments/exp_{method}_l_{loss_ord}_r*={r_true}_r={X.shape[1]}_condn={cond_number}_trial_{trial}.csv'
     full_path = os.path.join(base_dir, file_name)
     np.savetxt(full_path, losses, delimiter=',') 
@@ -354,9 +354,10 @@ def matrix_recovery_assymetric(X0, Y0, M_star, n_iter, A, A_adj, y_true, loss_or
     #X Y^T flattened jacobian
     def jacobian_c(X,Y):
         
-        n, r = X.shape
-        jac_x = np.zeros((n*n, n*r))
-        jac_y = np.zeros((n*n, n*r))
+        m, r = X.shape
+        n = Y.shape[0]
+        jac_x = np.zeros((n*m, m*r))
+        jac_y = np.zeros((n*m, n*r))
         
         for i in range(n):
             for j in range(n):
@@ -370,8 +371,9 @@ def matrix_recovery_assymetric(X0, Y0, M_star, n_iter, A, A_adj, y_true, loss_or
                         jac_y[i*n + j, j*r + l] = X[i, l]
                     
         
-      
-        return jac_x, jac_y
+        #return np.kron(np.eye(X.shape[0]),Y), jac_y
+        
+        return  jac_x, jac_y
         
         
     def subdifferential_h(M):
@@ -403,6 +405,7 @@ def matrix_recovery_assymetric(X0, Y0, M_star, n_iter, A, A_adj, y_true, loss_or
     for t in range(n_iter):
         
         if t%20 ==0:
+            
             print("assymetric")
             print(f'Iteration number :  {t}')
             print(f'Method           :  {method}')
@@ -428,7 +431,7 @@ def matrix_recovery_assymetric(X0, Y0, M_star, n_iter, A, A_adj, y_true, loss_or
         dampling = lambdaa if lambdaa != 'Liwei' else np.linalg.norm(c(X,Y) - M_star, ord='fro')
         
       
-        if method=='gnp' or method=='scaled':
+        if method=='gnp':
             
             try:
                 preconditionned_g_x, _,_,_ = np.linalg.lstsq(jac_x.T @ jac_x + dampling*np.eye(jac_x.shape[1],jac_x.shape[1]), g_x, rcond=-1)
@@ -437,17 +440,33 @@ def matrix_recovery_assymetric(X0, Y0, M_star, n_iter, A, A_adj, y_true, loss_or
                 preconditionned_g_x = g_x #No precondionning 
                 preconditionned_g_y = g_y
                 
-            preconditionned_G_x = preconditionned_g_x.reshape(n,r)
-            preconditionned_G_y = preconditionned_g_y.reshape(n,r)
+            preconditionned_G_x = preconditionned_g_x.reshape(*X.shape)
+            preconditionned_G_y = preconditionned_g_y.reshape(*Y.shape)
             aux_x = (jac_x @ preconditionned_g_x) if loss_ord == 1 else 'we dont care'
             aux_y = (jac_y @ preconditionned_g_y) if loss_ord == 1 else 'we dont care'
-            gamma = (h(c(X,Y)) - 0) /(2*( np.dot(aux_x,aux_x) + np.dot(aux_y,aux_y) ) )if loss_ord == 1 else 0.000001
+            gamma = (h(c(X,Y)) - 0) / ( np.dot(aux_x,aux_x) + np.dot(aux_y,aux_y) )  if loss_ord == 1 else 0.000001
+          
+        
+        elif method == 'scaled': #PAPER: Low-Rank Matrix Recovery with Scaled Subgradient Methods
+            preconditionner_x = np.linalg.inv(Y.T@Y + dampling* np.eye(X.shape[1]))
+            preconditionner_y = np.linalg.inv(X.T@X + dampling* np.eye(Y.shape[1]))
+            G_x = g_x.reshape(*X.shape)
+            G_y = g_y.reshape(*Y.shape)
+            preconditionned_G_x = G_x @ preconditionner_x
+            preconditionned_G_y = G_y @ preconditionner_y
+            preconditionned_g_x = preconditionned_G_x.reshape(-1)
+            preconditionned_g_y = preconditionned_G_y.reshape(-1)
+            
+            aux_x = G_x @ sqrtm(preconditionner_x) if loss_ord==1 else 'we dont care'
+            aux_y = G_y @ sqrtm(preconditionner_y) if loss_ord==1 else 'we dont care'
+            gamma = (h(c(X,Y)) - 0) / (np.sum(np.multiply(aux_x,aux_x)) + np.sum(np.multiply(aux_y, aux_y))) if loss_ord == 1 else 0.000001
+            
                       
 
         else:
             raise NotImplementedError
         
-     
+        
         X = X - gamma*preconditionned_G_x
         Y = Y - gamma*preconditionned_G_y
         

@@ -20,7 +20,6 @@ def trial_execution(trials, n, r_true, d, cond_numbers, ranks, init_radius_ratio
                 M_true =  X_true @ X_true.T
             else:
                 M_true = X_true @ Y_true.T
-            print(np.linalg.matrix_rank(M_true))
                 
             y_true = A(M_true)
     
@@ -80,7 +79,7 @@ if __name__ == "__main__":
             print("Please provide an integer value for loss_ord.")
             sys.exit(1)
     else:
-        loss_ord = 2 # Default value if not provided
+        loss_ord = 1 # Default value if not provided
         print(f"No loss_ord provided, using default value of {loss_ord}.")
 
         
@@ -95,9 +94,9 @@ if __name__ == "__main__":
     lambdaa_gnp  = 'Liwei'
     lambdaa_scaled = 'Liwei'
     init_radius_ratio = 0.01
-    ranks_test = [3,10]
-    cond_numbers_test = [1,100]
-    symmetric= True
+    ranks_test = [3,20]
+    cond_numbers_test = [1,1000]
+    symmetric= False
     
     d = 10 * n * r_true
     base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -112,8 +111,8 @@ if __name__ == "__main__":
         b = list(map(lambda p: p.join(), processes)) #join processes
     else:
         trial_execution(range(0, n_trial_div_n_cpu), n, r_true, d, cond_numbers_test, ranks_test, init_radius_ratio, T, loss_ord, lambdaa_scaled, lambdaa_gnp, base_dir, symmetric)
-        
-        
+    
+
     losses_scaled, losses_gnp = collect_compute_mean(ranks_test, cond_numbers_test, loss_ord, r_true, False)
     res_scaled, res_gnp = collect_compute_mean(ranks_test, cond_numbers_test, loss_ord, r_true, True)
     
