@@ -11,7 +11,12 @@ def generate_tensor(n,r, kappa):
     core_G = np.zeros((r, r, r))
     indices = np.arange(r)
     core_G[indices, indices, indices] = kappa ** (-indices / (r - 1))
-    return U1, U2, U3, core_G
+    
+    mu  = (n/r)*max(np.max(np.linalg.norm(U1, ord=np.inf, axis=0)),
+                    np.max(np.linalg.norm(U2, ord=np.inf, axis=0)),
+                    np.max(np.linalg.norm(U3, ord=np.inf, axis=0)))
+    
+    return tucker_product_optimized(U1,U2,U3,core_G), mu
 
 
 def generate_noise_S(T, treshold):
@@ -86,7 +91,7 @@ def update_factors(S, T_true_corr, U1, U2, U3, G, stepsize):
 def scaled_gd_robPCA_tensor(T_true_corr, T_true, r, stepsize, decay_constant, treshold_0, treshold_1, n_iter):
     
     S = generate_noise_S(T_true_corr, treshold_0)
-    U1,U2,U3, G = hosvd(T_true_corr - S, r)
+    U1,U2,U3, G = hosvd(1000*(T_true_corr - S), r)
     err_0 = np.linalg.norm(T_true - tucker_product_optimized(U1, U2, U3, G))
     errs  = []
     
@@ -128,22 +133,19 @@ def min_singular_value(matrix):
 
         
     
-n_iter = 1000
-stepsize = 1/7
+n_iter = 100
+stepsize = 1/4
 
 
 n = m = p = 10
 r_true = 5
-r = 5
+r = r_true = 2
 kappa = 5
-mu=1
 
-c = 1
-corruption_factor = c/(kappa*((mu*r)**3))
-corruption_factor = 0.2
 decay_constant = 1-0.45*stepsize
 
-T_true = tucker_product_optimized(*generate_tensor(n, r_true, kappa))
+T_true, mu = generate_tensor(n, r_true, kappa)
+corruption_factor = 1/(kappa*((mu*r)**3))
 treshold_0 = 1.5*np.max(np.abs(T_true))
 treshold_1 = (2*np.sqrt(mu*r/n))**3*min( min_singular_value(matrixise(T_true, 0)),
                                         min_singular_value(matrixise(T_true, 1)),
@@ -151,4 +153,4 @@ treshold_1 = (2*np.sqrt(mu*r/n))**3*min( min_singular_value(matrixise(T_true, 0)
 
 T_true_corr = T_true + np.multiply(generate_random_mask(n,n,n, corruption_factor), np.random.uniform( - 1* np.mean(np.abs(T_true)), np.mean(np.abs(T_true)), size=(n,n,n)))
 
-scaled_gd_robPCA_tensor(T_true_corr, T_true, r, stepsize, decay_constant, treshold_0, treshold_1, n_iter)
+errs = scaled_gd_robPCA_tensor(T_true_corr, T_true, r, stepsize, decay_constant, treshold_0, treshold_1, n_iter)
