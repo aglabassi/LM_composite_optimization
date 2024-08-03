@@ -124,11 +124,11 @@ def generate_random_mask(m, n, p, alpha):
     return mask
 
 
-def min_singular_value(matrix):
+def min_singular_value(matrix, eps=1e-10):
 
     singular_values = np.linalg.svd(matrix, compute_uv=False)
     
-    nonzero_singular_values = singular_values[singular_values > 1e-15]
+    nonzero_singular_values = singular_values[singular_values > eps]
     
     if len(nonzero_singular_values) == 0:
         return 0
@@ -139,30 +139,24 @@ def min_singular_value(matrix):
     
     
     
-n_iter = 500
-stepsize = 1/4
+n_iter = 100
+stepsize = 0.5
 
 
 n = m = p = 100
 r = r_true = 20
 kappa = 5
 
+#Theorem 1
 decay_constant = 1-0.45*stepsize #rho in paper
 
 T_true, mu = generate_tensor(n, r_true, kappa)
-corruption_factor = 1/(kappa*((mu*r)**3)) #alpha in paper
-
 treshold_0 = 1.5*np.max(np.abs(T_true)) #zeta_0 in paper
 treshold_1 = (2*np.sqrt(mu*r/n))**3*min( min_singular_value(matrixise(T_true, 0)),
                                         min_singular_value(matrixise(T_true, 1)),
                                         min_singular_value(matrixise(T_true, 2))) #zeta_1 in paper
 
-
-stepsize = 0.6
-decay_constant = 0.9
-treshold_0 = 0.03
-treshold_1 = 0.01
-corruption_factor = 0.2
+corruption_factor = 300/np.sqrt(kappa*((mu*r)**3)) #alpha in paper
 
 T_true_corr = T_true + np.multiply(generate_random_mask(n,n,n, corruption_factor), np.random.uniform( - 1* np.mean(np.abs(T_true)), np.mean(np.abs(T_true)), size=(n,n,n)))
 
@@ -189,9 +183,9 @@ def jacobian_u1(G,U1,U2,U3):
     
 
 
-U1 = np.linalg.svd( np.random.rand(n,n))[0][:,:r]
-U2 = np.linalg.svd( np.random.rand(n,n))[0][:,:r]
-U3 = np.linalg.svd( np.random.rand(n,n))[0][:,:r]
-G = np.zeros((r, r, r))
-A= jacobian_u1(G, U1, U2, U3)
+#U1 = np.linalg.svd( np.random.rand(n,n))[0][:,:r]
+#U2 = np.linalg.svd( np.random.rand(n,n))[0][:,:r]
+#U3 = np.linalg.svd( np.random.rand(n,n))[0][:,:r]
+#G = np.zeros((r, r, r))
+#A= jacobian_u1(G, U1, U2, U3)
 
