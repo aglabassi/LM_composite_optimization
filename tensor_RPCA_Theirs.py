@@ -17,7 +17,13 @@ tl.set_backend('pytorch')
 def thre(inputs, threshold, device):
     return torch.sign(inputs) * torch.max( torch.abs(inputs) - threshold, torch.zeros(inputs.shape).to(device))
 
-def rpca(X, Y, ranks, z0, z1, eta, decay, T, epsilon, device, skip=[]):
+def rpca(T_true, T_true_corr, ranks, z0, z1, eta, decay, T, epsilon, device, skip=[]):
+    
+    X = torch.FloatTensor(T_true)
+    Y = torch.FloatTensor(T_true_corr)
+    torch.set_printoptions(precision=10)
+
+
     ## Initialization
     G_t, factors_t = tucker(Y - thre(Y, z0, device), rank=ranks)
     order = len(ranks)

@@ -3,7 +3,6 @@
 #Implementation of method in "Fast and Provable Tensor Robust Principal Component Analysis via Scaled Gradient Descent"
 import numpy as  np
 from tensor_RPCA_Theirs import rpca
-import torch
 import matplotlib.pyplot as plt
 
 def generate_tensor(n,r, kappa):
@@ -143,50 +142,8 @@ corruption_factor = 100/np.sqrt(kappa*((mu*r)**3)) #alpha in paper
 
 T_true_corr = T_true + np.multiply(generate_random_mask(n,n,n, corruption_factor), np.random.uniform( - 1* np.mean(np.abs(T_true)), np.mean(np.abs(T_true)), size=(n,n,n)))
 
-X = torch.FloatTensor(T_true)
-Y = torch.FloatTensor(T_true_corr)
-torch.set_printoptions(precision=10)
-
-errs,_ = rpca(X, Y, [r,r,r], treshold_0, treshold_1, stepsize, decay_constant, n_iter, 0, 'cpu')
+errs,_ = rpca(T_true, T_true_corr, [r,r,r], treshold_0, treshold_1, stepsize, decay_constant, n_iter, 0, 'cpu')
 
 plt.plot(errs)
 plt.yscale('log')
 
-
-
-
-def jacobian_u1(G,U1,U2,U3):
-    n,r = U1.shape
-    res = np.zeros((r, n, n, n, n))
-    for i_ in range(n):#TODO VECTORIZE THIS LOOPS
-        for a_ in range(r):
-            res[a_,i_] =  tucker_product_optimized(np.outer(np.eye(n, dtype=int)[i_], np.eye(r, dtype=int)[a_]), U2,U3,G)         
-    return res
-    
-def jacobian_u1_optimized(G, U1, U2, U3):
-    n, r = U1.shape
-    I_n = np.eye(n)[:, :, np.newaxis, np.newaxis]  # Shape: (n, n, 1, 1)
-    I_r = np.eye(r)[np.newaxis, np.newaxis, :, :]  # Shape: (1, 1, r, r)
-    
-    outer_product = I_n * I_r  # Shape: (n, n, r, r)
-    outer_product = np.transpose(outer_product, (2,0,1,3))
-    
-    outer_product_reshaped = outer_product.reshape(n * n * r, r)
-    
-    res = tucker_product_optimized(outer_product_reshaped, U2, U3, G)
-    
-    res = res.reshape(r, n, n, n, n)
-    
-    return res
-
-n=5
-r=1
-G = np.random.rand(r,r,r)
-U1 = np.random.rand(n,r)
-U2 = np.random.rand(n,r)
-U3 = np.random.rand(n,r)
-
-print(jacobian_u1(G, U1, U2, U3))
-print('------------')
-print(jacobian_u1_optimized(G, U1, U2, U3))
-assert(np.linalg.norm(jacobian_u1_optimized(G, U1, U2, U3) - jacobian_u1(G, U1, U2, U3)) == 0) #currently works only for r=1
