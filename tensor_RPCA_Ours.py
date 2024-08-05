@@ -20,8 +20,8 @@ def tucker_product_optimized_torch(U1, U2, U3, G):
 
 def outer_product(vectors):
     
-    dims = len(vectors)
-    einsum_str = ','.join(chr(97 + i) for i in range(dims)) + '->' + ''.join(chr(97 + i) for i in range(dims))
+    order = len(vectors)
+    einsum_str = ','.join(chr(97 + i) for i in range(order)) + '->' + ''.join(chr(97 + i) for i in range(order))
     return torch.einsum(einsum_str, *vectors)
 
 def jacobian_u1(G, U1, U2, U3):
