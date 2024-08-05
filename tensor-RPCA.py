@@ -2,7 +2,7 @@
 #Author: Abdel
 #Implementation of method in "Fast and Provable Tensor Robust Principal Component Analysis via Scaled Gradient Descent"
 import numpy as  np
-from untitled1 import rpca
+from tensor_RPCA_Theirs import rpca
 import torch
 import matplotlib.pyplot as plt
 
@@ -91,23 +91,6 @@ def update_factors(S, T_true_corr, U1, U2, U3, G, stepsize):
     
     return U1_new, U2_new, U3_new, G_new
 
-def scaled_gd_robPCA_tensor(T_true_corr, T_true, r, stepsize, decay_constant, treshold_0, treshold_1, n_iter):
-    
-    S = soft_shrink(T_true_corr, treshold_0)
-    U1,U2,U3, G = hosvd(T_true_corr - S, r)
-    
-    err_0 = np.linalg.norm(T_true - tucker_product_optimized(U1, U2, U3, G))
-    errs  = []
-    
-    for k in range(0,n_iter):
-        err=  np.linalg.norm(T_true - tucker_product_optimized(U1, U2, U3, G))
-        errs.append(err)
-        print(err)
-        S = update_S(U1, U2, U3, G, T_true_corr, k, decay_constant, treshold_1)
-        U1, U2, U3, G = update_factors(S, T_true_corr, U1, U2, U3, G, stepsize)
-        
-    
-    return np.array(errs)/np.linalg.norm(err_0)
 
 def generate_random_mask(m, n, p, alpha):
     
@@ -139,13 +122,13 @@ def min_singular_value(matrix, eps=1e-10):
     
     
     
-n_iter = 100
+n_iter = 1000
 stepsize = 0.5
 
 
 n = m = p = 100
 r = r_true = 20
-kappa = 5
+kappa = 10
 
 #Theorem 1
 decay_constant = 1-0.45*stepsize #rho in paper
@@ -156,36 +139,53 @@ treshold_1 = (2*np.sqrt(mu*r/n))**3*min( min_singular_value(matrixise(T_true, 0)
                                         min_singular_value(matrixise(T_true, 1)),
                                         min_singular_value(matrixise(T_true, 2))) #zeta_1 in paper
 
-corruption_factor = 300/np.sqrt(kappa*((mu*r)**3)) #alpha in paper
+corruption_factor = 100/np.sqrt(kappa*((mu*r)**3)) #alpha in paper
 
 T_true_corr = T_true + np.multiply(generate_random_mask(n,n,n, corruption_factor), np.random.uniform( - 1* np.mean(np.abs(T_true)), np.mean(np.abs(T_true)), size=(n,n,n)))
-
-#errs = scaled_gd_robPCA_tensor(T_true_corr, T_true, r, stepsize, decay_constant, treshold_0, treshold_1, n_iter)
 
 X = torch.FloatTensor(T_true)
 Y = torch.FloatTensor(T_true_corr)
 torch.set_printoptions(precision=10)
 
-errs = rpca(X, Y, [r,r,r], treshold_0, treshold_1, stepsize, decay_constant, n_iter, 10**-12, 'cpu')
+errs,_ = rpca(X, Y, [r,r,r], treshold_0, treshold_1, stepsize, decay_constant, n_iter, 0, 'cpu')
 
 plt.plot(errs)
 plt.yscale('log')
 
 
 
+
 def jacobian_u1(G,U1,U2,U3):
     n,r = U1.shape
-    res = np.zeros((n, n, n, n, r))
+    res = np.zeros((r, n, n, n, n))
     for i_ in range(n):#TODO VECTORIZE THIS LOOPS
         for a_ in range(r):
-            res[:,:,:,i_,a_] =  tucker_product_optimized(np.outer(np.eye(n, dtype=int)[i_], np.eye(r, dtype=int)[a_]), U2,U3,G)         
+            res[a_,i_] =  tucker_product_optimized(np.outer(np.eye(n, dtype=int)[i_], np.eye(r, dtype=int)[a_]), U2,U3,G)         
     return res
     
+def jacobian_u1_optimized(G, U1, U2, U3):
+    n, r = U1.shape
+    I_n = np.eye(n)[:, :, np.newaxis, np.newaxis]  # Shape: (n, n, 1, 1)
+    I_r = np.eye(r)[np.newaxis, np.newaxis, :, :]  # Shape: (1, 1, r, r)
+    
+    outer_product = I_n * I_r  # Shape: (n, n, r, r)
+    
+    outer_product_reshaped = outer_product.reshape(n * n * r, r)
+    
+    res = tucker_product_optimized(outer_product_reshaped, U2, U3, G)
+    
+    res = res.reshape(r, n, n, n, n)
+    
+    return res
 
+n=5
+r=1
+G = np.random.rand(r,r,r)
+U1 = np.random.rand(n,r)
+U2 = np.random.rand(n,r)
+U3 = np.random.rand(n,r)
 
-#U1 = np.linalg.svd( np.random.rand(n,n))[0][:,:r]
-#U2 = np.linalg.svd( np.random.rand(n,n))[0][:,:r]
-#U3 = np.linalg.svd( np.random.rand(n,n))[0][:,:r]
-#G = np.zeros((r, r, r))
-#A= jacobian_u1(G, U1, U2, U3)
-
+print(jacobian_u1(G, U1, U2, U3))
+print('------------')
+print(jacobian_u1_optimized(G, U1, U2, U3))
+assert(np.linalg.norm(jacobian_u1_optimized(G, U1, U2, U3) - jacobian_u1(G, U1, U2, U3)) == 0) #currently works only for r=1
