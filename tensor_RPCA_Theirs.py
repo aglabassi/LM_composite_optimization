@@ -71,4 +71,4 @@ def rpca(X, Y, ranks, z0, z1, eta, decay, T, epsilon, device, skip=[]):
         factors_t = factors_t1
         G_t = G_t1
     
-    return torch.tensor(errs)
+    return torch.tensor(errs)/errs[0], X_t
