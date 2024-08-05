@@ -169,6 +169,7 @@ def jacobian_u1_optimized(G, U1, U2, U3):
     I_r = np.eye(r)[np.newaxis, np.newaxis, :, :]  # Shape: (1, 1, r, r)
     
     outer_product = I_n * I_r  # Shape: (n, n, r, r)
+    outer_product = np.transpose(outer_product, (2,0,1,3))
     
     outer_product_reshaped = outer_product.reshape(n * n * r, r)
     
