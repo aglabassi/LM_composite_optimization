@@ -5,12 +5,10 @@
 import torch
 import tensorly as tl
 from tensor_RPCA_Theirs import rpca
+from tensor_RPCA_Ours import rpca_ours
 import matplotlib.pyplot as plt
 
-# Set backend to PyTorch for TensorLy
 tl.set_backend('pytorch')
-
-# Determine the device (CUDA if available, else CPU)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 def generate_tensor(n, r, kappa):
@@ -55,11 +53,11 @@ def min_singular_value(matrix, eps=1e-5):
 
 
 n_iter = 100
-stepsize = 0.5
+stepsize = 0.4
 
 
 n = m = p = 100
-r = r_true = 20
+r = r_true = 2
 kappa = 5
 
 #Theorem 1
@@ -71,7 +69,7 @@ treshold_1 = (2*torch.sqrt(mu*r/n))**3*min( min_singular_value(matrixise(T_true,
                                         min_singular_value(matrixise(T_true, 1)),
                                         min_singular_value(matrixise(T_true, 2))) #zeta_1 in paper
 
-corruption_factor = 100/torch.sqrt(kappa*((mu*r)**3)) #alpha in paper
+corruption_factor = 30/torch.sqrt(kappa*((mu*r)**3)) #alpha in paper
 
 T_true_corr = T_true + torch.mul(generate_random_mask(n,n,n, corruption_factor),  generate_uniform_random(- 1* T_true.abs().mean().item(), T_true.abs().mean().item(), (n,n,n)))
 
@@ -80,3 +78,7 @@ errs = rpca(T_true, T_true_corr, [r,r,r], treshold_0, treshold_1, stepsize, deca
 plt.plot(errs)
 plt.yscale('log')
 
+errs = rpca_ours(T_true, T_true_corr, [r,r,r], treshold_0, n_iter)
+
+plt.plot(errs)
+plt.yscale('log')

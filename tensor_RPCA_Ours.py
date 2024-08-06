@@ -10,8 +10,10 @@ Created on Mon Aug  5 12:40:55 2024
 import torch
 import tensorly as tl
 from itertools import product
+from tensor_RPCA_Theirs import thre
 
 tl.set_backend('pytorch')
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 def tucker_product_optimized_torch(U1, U2, U3, G):
     
@@ -95,6 +97,57 @@ def jacobian_c(G, factors):
     output = torch.cat([ tensor.view(-1, *output_shape) for tensor in tensors], dim=0 )
     
     return output.view(output.shape[0], -1).transpose(1,0)
+
+
+
+def retrieve_tensors(concatenated_tensor, original_shapes):
+
+   
+    lengths = [torch.prod(torch.tensor(shape)).item() for shape in original_shapes]
+
+    split_tensors = torch.split(concatenated_tensor, lengths)
+
+    return [split_tensors[i].view(original_shapes[i]) for i in range(len(original_shapes))]
+
+
+def rpca_ours(X,Y, ranks, z0, n_iter):
+    
+    G0, factors0 = tl.decomposition.tucker(Y - thre(Y, z0, device), rank=ranks)
+    
+    errs = []
+    shapes = [ t.shape for t in [G0] + factors0 ]
+    G = G0.clone()
+    factors = [ factor.clone() for factor in factors0 ]
+    best_error = torch.sum(torch.abs(X - Y))
+    
+    for k in range(n_iter):
+        dist_to_sol_emb = torch.norm( tl.tucker_to_tensor((G, factors)) - Y  ).item()
+        h_c_x =  torch.sum(torch.abs( tl.tucker_to_tensor((G, factors)) -  Y)).item()
+        print(dist_to_sol_emb)
+        print(h_c_x)
+        print(best_error)
+        print('---')
+        errs.append(dist_to_sol_emb)
+        jac_c = jacobian_c(G, factors)
+        concatenated = torch.cat([ t.reshape(-1)  for t in [G] + factors ])
+        subgradient = torch.sign( tl.tucker_to_tensor((G, factors)) - Y  ).reshape(-1)
+        
+        stepsize = (h_c_x - torch.sum(torch.abs(X - Y))) / (torch.dot(subgradient, subgradient))
+        concatenated = concatenated - 0.1*stepsize *  (torch.linalg.pinv( jac_c.T@jac_c + dist_to_sol_emb*torch.eye(jac_c.shape[1]) ) ) @ (jac_c.T @ subgradient )
+        
+        tmp = retrieve_tensors(concatenated, shapes)
+        
+        G = tmp[0]
+        factors = tmp[1:]
+        
+        
+    return errs
+    
+    
+    
+
+
+
     
 
 n = 100
@@ -105,13 +158,13 @@ G = torch.rand(r, r, r, dtype=torch.float32)
 U1 = torch.rand(n, r, dtype=torch.float32)
 U2 = torch.rand(n, r, dtype=torch.float32)
 U3 = torch.rand(n, r, dtype=torch.float32)
+Y = torch.rand(n,n,n, dtype=torch.float32)
 
-
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 G = G.to(device)
 U1 = U1.to(device)
 U2 = U2.to(device)
 U3 = U3.to(device)
+Y = Y.to(device)
 
 t1 = jacobian_u2(G, U1, U2, U3).to(device)
 t2 = jacobian_u_optimized(G, [U1, U2, U3], 1).to(device)
@@ -132,6 +185,3 @@ print(t2)
 
 assert torch.allclose(t2, t1, atol=1e-12), "The outputs are not equal!"
 
-A = jacobian_c(G, [U1, U2, U3])
-print(A.shape)
-print(torch.linalg.pinv(A.T@A).shape)
