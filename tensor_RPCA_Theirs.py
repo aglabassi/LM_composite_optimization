@@ -17,10 +17,8 @@ tl.set_backend('pytorch')
 def thre(inputs, threshold, device):
     return torch.sign(inputs) * torch.max( torch.abs(inputs) - threshold, torch.zeros(inputs.shape).to(device))
 
-def rpca(T_true, T_true_corr, ranks, z0, z1, eta, decay, T, epsilon, device, skip=[]):
+def rpca(X, Y, ranks, z0, z1, eta, decay, T, epsilon, device, skip=[]):
     
-    X = torch.FloatTensor(T_true)
-    Y = torch.FloatTensor(T_true_corr)
     torch.set_printoptions(precision=10)
 
 
@@ -40,7 +38,7 @@ def rpca(T_true, T_true_corr, ranks, z0, z1, eta, decay, T, epsilon, device, ski
         X_t = tucker_to_tensor((G_t, factors_t))
         S_t1 = thre(Y- X_t, z1 * (decay**t), device)
         print(torch.norm(X_t - X))
-        errs.append(torch.norm(X_t - X))
+        errs.append(torch.norm(X_t - X).item())
         factors_t1 = []
         D = S_t1 - Y
         ATA_t = []
@@ -77,4 +75,4 @@ def rpca(T_true, T_true_corr, ranks, z0, z1, eta, decay, T, epsilon, device, ski
         factors_t = factors_t1
         G_t = G_t1
     
-    return torch.tensor(errs)/errs[0], X_t
+    return errs
