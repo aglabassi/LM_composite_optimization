@@ -19,13 +19,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 def jacobian_c(X, Y, Z, U):
     def c(G,A1,A2,A3):
         return tl.tucker_to_tensor((G, [A1,A2,A3]))
-        #return torch.einsum('ia,jb,kc,abc->ijk', A1, A2, A3, G)
-    # Make inputs require gradient
-    X.requires_grad_(True)
-    Y.requires_grad_(True)
-    Z.requires_grad_(True)
-    U.requires_grad_(True)
-    
+        #return torch.einsum('ia,jb,kc,abc->ijk', A1, A2, A3, G
     # Compute the output
     output = c(X, Y, Z, U)
     
@@ -37,7 +31,6 @@ def jacobian_c(X, Y, Z, U):
     
     # Prepare the Jacobian matrix
     jacobian = []
-
     # Compute gradients for each output
     for i in range(num_outputs):
         # Zero gradients
@@ -52,7 +45,6 @@ def jacobian_c(X, Y, Z, U):
         
         # Backward pass on the i-th output
         output_flat[i].backward(retain_graph=True)
-        
         # Collect gradients
         jacobian.append(torch.cat([t.grad.flatten() for t in [X, Y, Z, U] if t.grad is not None]))
 
@@ -70,7 +62,7 @@ def retrieve_tensors(concatenated_tensor, original_shapes):
 
     split_tensors = torch.split(concatenated_tensor, lengths)
 
-    return [split_tensors[i].view(original_shapes[i]) for i in range(len(original_shapes))]
+    return [split_tensors[i].view(original_shapes[i]).clone().detach().requires_grad_(True) for i in range(len(original_shapes))]
 
 
 def rpca_ours(X,Y, ranks, z0, n_iter):
@@ -79,8 +71,8 @@ def rpca_ours(X,Y, ranks, z0, n_iter):
     
     errs = []
     shapes = [ t.shape for t in [G0] + factors0 ]
-    G = G0.clone()
-    factors = [ factor.clone() for factor in factors0 ]
+    G = G0.clone().detach().requires_grad_(True)
+    factors = [ factor.clone().detach().requires_grad_(True) for factor in factors0 ]
     best_error = torch.sum(torch.abs(X - Y))
     
     for k in range(n_iter):
@@ -91,16 +83,18 @@ def rpca_ours(X,Y, ranks, z0, n_iter):
         print(best_error)
         print('---')
         errs.append(dist_to_sol_emb)
-        jac_c = jacobian_c(*[G] + factors)
+        
+        jac_c = jacobian_c(G, *factors)
+        
         concatenated = torch.cat([ t.reshape(-1)  for t in [G] + factors ])
-        subgradient = ( tl.tucker_to_tensor((G, factors)) - Y  ).reshape(-1)
+        subgradient = torch.sign( tl.tucker_to_tensor((G, factors)) - Y  ).reshape(-1)
         
         stepsize = (h_c_x - best_error) / (torch.dot(subgradient, subgradient))
         
         concatenated = concatenated - stepsize *  (torch.linalg.pinv( jac_c.T@jac_c + 0*torch.eye(jac_c.shape[1]) ) ) @ (jac_c.T @ subgradient )
         
         tmp = retrieve_tensors(concatenated, shapes)
-        
+
         G = tmp[0]
         factors = tmp[1:]
         
