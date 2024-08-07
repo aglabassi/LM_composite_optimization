@@ -75,10 +75,10 @@ T_true_corr = T_true + torch.mul(generate_random_mask(n,n,n, corruption_factor),
 
 errs = rpca(T_true, T_true_corr, [r,r,r], treshold_0, treshold_1, stepsize, decay_constant, n_iter, 0, device)
 
-plt.plot(errs)
+plt.plot(torch.tensor(errs)/errs[0])
 plt.yscale('log')
 
 errs = rpca_ours(T_true, T_true_corr, [r,r,r], treshold_0, n_iter)
 
-plt.plot(errs)
+plt.plot(torch.tensor(errs)/errs[0])
 plt.yscale('log')
