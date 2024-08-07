@@ -82,7 +82,7 @@ def rpca_ours(X,Y, ranks, z0, n_iter):
         print(h_c_x)
         print(best_error)
         print('---')
-        errs.append(dist_to_sol_emb)
+        errs.append(torch.abs( h_c_x - best_error ).item())
         
         jac_c = jacobian_c(G, *factors)
         
