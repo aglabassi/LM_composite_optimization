@@ -56,14 +56,14 @@ def rpca(X, Y, ranks, z0, z1, eta, decay, T, epsilon, device, skip=[]):
             A_t = factors_t[k]
             factors_t_copy = factors_t.copy()
             factors_t_copy[k] = torch.eye(A_t.shape[1]).to(device)
-            A_breve_t = tucker_to_unfolded((G_t, factors_t_copy), k).T
+            A_breve_t = tucker_to_unfolded((G_t, factors_t_copy), k).T 
 
             ATA_t_copy = ATA_t.copy()
             ATA_t_copy[k] = torch.eye(A_t.shape[1]).to(device)
             AbTAb_t = tucker_to_unfolded((G_t, ATA_t_copy), k) @ unfold(G_t, k).T
 
-            ker = torch.linalg.inv(AbTAb_t + epsilon * torch.eye(A_breve_t.shape[1]).to(device))
-            A_t1 = (1 - eta) * A_t - eta * unfold(D, k) @ A_breve_t @ ker
+            #ker = torch.linalg.inv(AbTAb_t + epsilon * torch.eye(A_breve_t.shape[1]).to(device))
+            A_t1 = (1 - eta) * A_t - eta * torch.linalg.solve(AbTAb_t + epsilon * torch.eye(A_breve_t.shape[1]),  (unfold(D, k) @ A_breve_t).T).T
             factors_t1.append(A_t1)
         G_factors_t = []
         for k in range(order):
