@@ -56,7 +56,7 @@ n_iter = 1000
 stepsize = 0.4
 
 
-n = m = p = 10
+n = m = p = 100
 r = r_true = 2
 kappa = 5
 
@@ -75,14 +75,20 @@ corr_scaler = 1000
 
 T_true_corr = T_true + corr_scaler*torch.mul(generate_random_mask(n,n,n, corruption_factor),  generate_uniform_random(- 1* T_true.abs().mean().item(), T_true.abs().mean().item(), (n,n,n)))
 
-#errs = rpca(T_true, T_true_corr, [r,r,r], treshold_0, treshold_1, stepsize, decay_constant, n_iter, 10**-10, device)
+errs = rpca(T_true, T_true_corr, [r,r,r], treshold_0, treshold_1, stepsize, decay_constant, n_iter, 10**-10, device)
+errs_ours = rpca_ours(T_true, T_true_corr, [r,r,r], treshold_0, n_iter, G, factors, perturb=0.5)
 
-#plt.plot(torch.tensor(errs)/errs[0])
-#plt.yscale('log')
 
-errs = rpca_ours(T_true, T_true_corr, [r,r,r], treshold_0, n_iter, G, factors, perturb=0.5)
+plt.figure(figsize=(8, 5))
+plt.plot(torch.tensor(errs)/errs[0], label='err_theirs')
+plt.plot(torch.tensor(errs_ours)/errs_ours[0], label='err_ours')
 
-plt.plot(torch.tensor(errs)/errs[0])
+# Add labels and title
+plt.xlabel('iteration')
+plt.ylabel('error')
 plt.yscale('log')
+plt.title('Plot of relative |h(c(inp)) - h(c(inp*))|')
+plt.legend()
 
-print(torch.norm(T_true_corr - T_true))
+# Show the plot
+plt.show()
