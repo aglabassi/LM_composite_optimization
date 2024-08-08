@@ -52,11 +52,11 @@ def min_singular_value(matrix, eps=1e-5):
 
 
 
-n_iter = 100
+n_iter = 1000
 stepsize = 0.4
 
 
-n = m = p = 100
+n = m = p = 10
 r = r_true = 2
 kappa = 5
 
@@ -69,16 +69,20 @@ treshold_1 = (2*torch.sqrt(mu*r/n))**3*min( min_singular_value(matrixise(T_true,
                                         min_singular_value(matrixise(T_true, 1)),
                                         min_singular_value(matrixise(T_true, 2))) #zeta_1 in paper
 
-corruption_factor = 30/torch.sqrt(kappa*((mu*r)**3)) #alpha in paper
+corruption_factor = 100/torch.sqrt(kappa*((mu*r)**3)) #alpha in paper
+corruption_factor = 0.01
+corr_scaler = 1000
 
-T_true_corr = T_true + torch.mul(generate_random_mask(n,n,n, corruption_factor),  generate_uniform_random(- 1* T_true.abs().mean().item(), T_true.abs().mean().item(), (n,n,n)))
+T_true_corr = T_true + corr_scaler*torch.mul(generate_random_mask(n,n,n, corruption_factor),  generate_uniform_random(- 1* T_true.abs().mean().item(), T_true.abs().mean().item(), (n,n,n)))
 
-errs = rpca(T_true, T_true_corr, [r,r,r], treshold_0, treshold_1, stepsize, decay_constant, n_iter, 0, device)
+#errs = rpca(T_true, T_true_corr, [r,r,r], treshold_0, treshold_1, stepsize, decay_constant, n_iter, 10**-10, device)
+
+#plt.plot(torch.tensor(errs)/errs[0])
+#plt.yscale('log')
+
+errs = rpca_ours(T_true, T_true_corr, [r,r,r], treshold_0, n_iter, G, factors, perturb=0.5)
 
 plt.plot(torch.tensor(errs)/errs[0])
 plt.yscale('log')
 
-errs = rpca_ours(T_true, T_true_corr, [r,r,r], treshold_0, n_iter)
-
-plt.plot(torch.tensor(errs)/errs[0])
-plt.yscale('log')
+print(torch.norm(T_true_corr - T_true))

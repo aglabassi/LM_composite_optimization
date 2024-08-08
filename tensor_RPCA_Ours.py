@@ -76,18 +76,68 @@ def retrieve_tensors(concatenated_tensor, original_shapes):
     return [split_tensors[i].reshape(original_shapes[i]) for i in range(len(original_shapes))]
 
 
-def rpca_ours(X,Y, ranks, z0, n_iter):
-    G, factors = tl.decomposition.tucker(Y - thre(Y, z0, device), rank=ranks)
-    n,r = factors[0].shape
-    G, factors = torch.rand(r,r,r), [torch.rand(n,r) for i in range(3)]
+def random_perturbation(dimensions, delta):
+    """
+    Generates a random perturbation tensor with specified dimensions and a Frobenius norm of at least delta.
+
+    Args:
+    dimensions (tuple of ints): The shape of the tensor to generate.
+    delta (float): The minimum Frobenius norm of the generated tensor.
+
+    Returns:
+    torch.Tensor: A tensor of the specified dimensions with a Frobenius norm of at least delta.
+    """
+    # Generate a random tensor with the specified dimensions
+    perturbation = torch.randn(dimensions)
+
+    # Calculate its current Frobenius norm
+    current_norm = torch.norm(perturbation, p='fro')
+
+    # Scale the tensor to have a Frobenius norm of exactly delta
+    if current_norm > 0:
+        scale_factor = delta / current_norm
+        perturbation *= scale_factor
     
+    # If current norm is exactly zero (rare), regenerate the tensor (recursive call)
+    if current_norm == 0:
+        return random_perturbation(dimensions, delta)
+
+    return perturbation
+
+def fill_tensor_elementwise(source, target):
+    """Fill target tensor element-wise from source tensor."""
+    if len(source.shape) == 1:
+        for i in range(source.shape[0]):
+            target[i] = source[i]
+    elif len(source.shape) == 2:
+        for i in range(source.shape[0]):
+            for j in range(source.shape[1]):
+                target[i, j] = source[i, j]
+    elif len(source.shape) == 3:
+        for i in range(source.shape[0]):
+            for j in range(source.shape[1]):
+                for k in range(source.shape[2]):
+                    target[i, j, k] = source[i, j, k]
+
+
+def rpca_ours(X,Y, ranks, z0, n_iter, G_true, factors_true, perturb=0.1):
+    
+    G0 = (G_true + random_perturbation(G_true.shape, perturb)).clone()
+    factors0 = [ (f + random_perturbation(f.shape, perturb)).clone() for f in factors_true ]
+    
+    G = torch.zeros(*G0.shape)
+    factors = [ torch.zeros(*f.shape) for f in factors0 ]
+    fill_tensor_elementwise(G0, G)
+    for idx, factor in enumerate(factors):
+        fill_tensor_elementwise(factors0[idx], factor)
+
     errs = []
     shapes = [ t.shape for t in [G] + factors ]
     best_error = torch.sum(torch.abs(X - Y))
     
     for k in range(n_iter):
         residual = tl.tucker_to_tensor((G, factors)) - Y
-        dist_to_sol_emb = torch.norm( residual ).item()
+        dist_to_sol_emb = torch.norm( tl.tucker_to_tensor((G, factors)) - X ).item()
         h_c_x =  torch.sum(torch.abs( residual )).item()
         
         print(dist_to_sol_emb)
@@ -103,7 +153,7 @@ def rpca_ours(X,Y, ranks, z0, n_iter):
         
         stepsize = (h_c_x - best_error) / (torch.dot(subgradient, subgradient))
         
-        concatenated = concatenated - stepsize *  (torch.linalg.pinv( jac_c.T@jac_c + dist_to_sol_emb*torch.eye(jac_c.shape[1]) ) ) @ (jac_c.T @ subgradient )
+        concatenated = concatenated - stepsize *  (torch.linalg.pinv( jac_c.T@jac_c + (dist_to_sol_emb)*torch.eye(jac_c.shape[1]) ) ) @ (jac_c.T @ subgradient )
         
         tmp = retrieve_tensors(concatenated, shapes)
 
