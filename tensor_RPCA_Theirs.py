@@ -38,7 +38,11 @@ def rpca(X, Y, ranks, z0, z1, eta, decay, T, epsilon, device, skip=[]):
         X_t = tucker_to_tensor((G_t, factors_t))
         S_t1 = thre(Y- X_t, z1 * (decay**t), device)
         print(torch.norm(X_t - X))
-        errs.append(torch.norm(X_t - X).item())
+        
+        
+        errs.append(torch.norm( X_t + S_t1 - Y ).item())
+        
+        
         factors_t1 = []
         D = S_t1 - Y
         ATA_t = []
