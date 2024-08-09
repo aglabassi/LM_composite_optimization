@@ -9,8 +9,7 @@ Created on Mon Aug  5 12:40:55 2024
 
 import torch
 import tensorly as tl
-from itertools import product
-from tensor_RPCA_Theirs import thre
+from utils import random_perturbation, fill_tensor_elementwise, retrieve_tensors, thre
 
 tl.set_backend('pytorch')
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -66,64 +65,15 @@ def compute_jacobian_c_autograd(X, Y, Z, U):
 
 
 
-def retrieve_tensors(concatenated_tensor, original_shapes):
-
-   
-    lengths = [torch.prod(torch.tensor(shape)).item() for shape in original_shapes]
-
-    split_tensors = torch.split(concatenated_tensor, lengths)
-
-    return [split_tensors[i].reshape(original_shapes[i]) for i in range(len(original_shapes))]
-
-
-def random_perturbation(dimensions, delta):
-    """
-    Generates a random perturbation tensor with specified dimensions and a Frobenius norm of at least delta.
-
-    Args:
-    dimensions (tuple of ints): The shape of the tensor to generate.
-    delta (float): The minimum Frobenius norm of the generated tensor.
-
-    Returns:
-    torch.Tensor: A tensor of the specified dimensions with a Frobenius norm of at least delta.
-    """
-    # Generate a random tensor with the specified dimensions
-    perturbation = torch.randn(dimensions)
-
-    # Calculate its current Frobenius norm
-    current_norm = torch.norm(perturbation, p='fro')
-
-    # Scale the tensor to have a Frobenius norm of exactly delta
-    if current_norm > 0:
-        scale_factor = delta / current_norm
-        perturbation *= scale_factor
+def rpca_ours(G_true, factors_true, X,Y, ranks, z0, n_iter, spectral_init, perturb=0.1):
     
-    # If current norm is exactly zero (rare), regenerate the tensor (recursive call)
-    if current_norm == 0:
-        return random_perturbation(dimensions, delta)
-
-    return perturbation
-
-def fill_tensor_elementwise(source, target):
-    """Fill target tensor element-wise from source tensor."""
-    if len(source.shape) == 1:
-        for i in range(source.shape[0]):
-            target[i] = source[i]
-    elif len(source.shape) == 2:
-        for i in range(source.shape[0]):
-            for j in range(source.shape[1]):
-                target[i, j] = source[i, j]
-    elif len(source.shape) == 3:
-        for i in range(source.shape[0]):
-            for j in range(source.shape[1]):
-                for k in range(source.shape[2]):
-                    target[i, j, k] = source[i, j, k]
-
-
-def rpca_ours(X,Y, ranks, z0, n_iter, G_true, factors_true, perturb=0.1):
-    
-    G0 = (G_true + random_perturbation(G_true.shape, perturb)).clone()
-    factors0 = [ (f + random_perturbation(f.shape, perturb)).clone() for f in factors_true ]
+    if spectral_init:
+        G0, factors0 = tl.decomposition.tucker(Y - thre(Y, z0, device), rank=ranks)
+    else:      
+        G0 = (G_true + random_perturbation(G_true.shape, perturb)).clone()
+        factors0 = [ (f + random_perturbation(f.shape, perturb)).clone() for f in factors_true ]
+        
+        
     
     G = torch.zeros(*G0.shape)
     factors = [ torch.zeros(*f.shape) for f in factors0 ]
@@ -136,15 +86,20 @@ def rpca_ours(X,Y, ranks, z0, n_iter, G_true, factors_true, perturb=0.1):
     best_error = torch.sum(torch.abs(X - Y))
     
     for k in range(n_iter):
-        residual = tl.tucker_to_tensor((G, factors)) - Y
-        dist_to_sol_emb = torch.norm( tl.tucker_to_tensor((G, factors)) - X ).item()
+        
+        Xk  =  tl.tucker_to_tensor((G, factors))
+        residual = Xk - Y
+        
+        
+        dist_to_sol_emb = torch.norm( Xk - X ).item()
         h_c_x =  torch.sum(torch.abs( residual )).item()
         
+        print(k)
         print(dist_to_sol_emb)
         print(h_c_x)
         print(best_error)
         print('---')
-        errs.append(torch.abs( h_c_x - best_error ).item())
+        errs.append(dist_to_sol_emb)
         
         jac_c = compute_jacobian_c_tractable(G, *factors)
         

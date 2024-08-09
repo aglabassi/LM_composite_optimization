@@ -10,20 +10,22 @@ import torch
 import tensorly as tl
 from tensorly import tucker_to_tensor, tucker_to_unfolded, unfold
 from tensorly.decomposition import tucker
+from utils import random_perturbation, thre
 
 tl.set_backend('pytorch')
 
 
-def thre(inputs, threshold, device):
-    return torch.sign(inputs) * torch.max( torch.abs(inputs) - threshold, torch.zeros(inputs.shape).to(device))
-
-def rpca(X, Y, ranks, z0, z1, eta, decay, T, epsilon, device, skip=[]):
+def rpca(G_true, factors_true, X, Y, ranks, z0, z1, eta, decay, T, epsilon, device, spectral_init, perturb=0.1, skip=[]):
     
     torch.set_printoptions(precision=10)
 
 
     ## Initialization
-    G_t, factors_t = tucker(Y - thre(Y, z0, device), rank=ranks)
+    if spectral_init:
+        G_t, factors_t = tucker(Y - thre(Y, z0, device), rank=ranks)
+    else:
+        G_t, factors_t = G_true + random_perturbation(G_true.shape, perturb), [ f + random_perturbation(f.shape, perturb)  for f in factors_true ]
+        
     order = len(ranks)
 
     ATA_inverses_skipped = dict()
@@ -40,7 +42,7 @@ def rpca(X, Y, ranks, z0, z1, eta, decay, T, epsilon, device, skip=[]):
         print(torch.norm(X_t - X))
         
         
-        errs.append(torch.norm( X_t + S_t1 - Y ).item())
+        errs.append(torch.norm( X_t - X ).item())
         
         
         factors_t1 = []

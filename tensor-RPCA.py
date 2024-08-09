@@ -55,8 +55,9 @@ def min_singular_value(matrix, eps=1e-5):
 n_iter = 1000
 stepsize = 0.4
 
-
-n = m = p = 100
+spectral_init = False
+radius_init = 1
+n = m = p = 20
 r = r_true = 2
 kappa = 5
 
@@ -70,13 +71,13 @@ treshold_1 = (2*torch.sqrt(mu*r/n))**3*min( min_singular_value(matrixise(T_true,
                                         min_singular_value(matrixise(T_true, 2))) #zeta_1 in paper
 
 corruption_factor = 100/torch.sqrt(kappa*((mu*r)**3)) #alpha in paper
-corruption_factor = 0.01
-corr_scaler = 1000
+corruption_factor = 0.2
+corr_scaler = 1
 
 T_true_corr = T_true + corr_scaler*torch.mul(generate_random_mask(n,n,n, corruption_factor),  generate_uniform_random(- 1* T_true.abs().mean().item(), T_true.abs().mean().item(), (n,n,n)))
 
-errs = rpca(T_true, T_true_corr, [r,r,r], treshold_0, treshold_1, stepsize, decay_constant, n_iter, 10**-10, device)
-errs_ours = rpca_ours(T_true, T_true_corr, [r,r,r], treshold_0, n_iter, G, factors, perturb=0.5)
+errs = rpca(G, factors, T_true, T_true_corr, [r,r,r], treshold_0, treshold_1, stepsize, decay_constant, n_iter, 10**-10, device, spectral_init, perturb=radius_init)
+errs_ours = rpca_ours(G, factors, T_true, T_true_corr, [r,r,r], treshold_0, n_iter, spectral_init, perturb=radius_init)
 
 
 plt.figure(figsize=(8, 5))
@@ -87,7 +88,7 @@ plt.plot(torch.tensor(errs_ours)/errs_ours[0], label='err_ours')
 plt.xlabel('iteration')
 plt.ylabel('error')
 plt.yscale('log')
-plt.title('Plot of relative |h(c(inp)) - h(c(inp*))|')
+plt.title(f'\| c(xt) - c(x*) \|_2 / \| c(x0) - c(x*) \|_2 , spectral init = {spectral_init}')
 plt.legend()
 
 # Show the plot

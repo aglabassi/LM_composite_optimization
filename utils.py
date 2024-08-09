@@ -148,7 +148,7 @@ def create_rip_transform(n, d):
 
     def transform(matrix):
         matrix_flattened = matrix.reshape(-1)
-        return np.dot(transformation_matrix, matrix_flattened)
+        return np.dot(transformation_matrix, matrix_flattened) 
 
 
     def adjoint_transform(vector):
@@ -156,6 +156,23 @@ def create_rip_transform(n, d):
         return matrix_reconstructed.reshape(n, n)
 
     return transform, adjoint_transform
+
+
+# def create_rip_transform(n, d):
+#     # Create an identity matrix for the flattening operation
+#     transformation_matrix = np.eye(n*n)
+#     adjoint_transformation_matrix = transformation_matrix.T
+
+#     def transform(matrix):
+#         # Flatten the matrix directly
+#         return np.dot(transformation_matrix, matrix.reshape(-1))
+
+#     def adjoint_transform(vector):
+#         # Reshape the vector back to the original matrix shape
+#         v = np.dot(adjoint_transformation_matrix, vector)
+#         return v.reshape(n, n)
+
+#     return transform, adjoint_transform
 
 
 
@@ -261,7 +278,6 @@ def matrix_recovery(X0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond
 
     X = X0.copy()
     losses = []
-    resids = []
     jacob_c = jacobian_c(X)
 
     n,r = X.shape
@@ -293,19 +309,15 @@ def matrix_recovery(X0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond
         
             
         if method=='scaled':#PAPER: Low-Rank Matrix Recovery with Scaled Subgradient Methods
-            try:
-                residual = (A(X@X.T) - y_true) if loss_ord==2 else np.sign(A(X@X.T) - y_true)
-                try:
-                    precondionner_inv =  np.linalg.inv(X.T@X + dampling*np.eye(r,r))
-                except:
-                    precondionner_inv =  np.eye(r,r)
-                
-                G = g.reshape(*X.shape)
-                preconditionned_G = G @ precondionner_inv
-                aux = G @ sqrtm(precondionner_inv) if loss_ord==1 else 'we dont care'
-                gamma = (h(c(X)) - 0) / np.sum(np.multiply(aux,aux)) if loss_ord == 1 else 0.000001
-            except:
-                print("diverged")
+
+            residual = (A(X@X.T) - y_true) if loss_ord==2 else np.sign(A(X@X.T) - y_true)
+            precondionner_inv =   np.eye(r,r) #(np.inv()) for scaled
+
+            
+            G = g.reshape(*X.shape)
+            preconditionned_G = G @ precondionner_inv
+            aux = G @ sqrtm(precondionner_inv) if loss_ord==1 else 'we dont care'
+            gamma = (h(c(X)) - 0) / np.sum(np.multiply(g,g)) if loss_ord == 1 else 0.0000001
                 
         elif method=='gnp':
             
@@ -316,26 +328,15 @@ def matrix_recovery(X0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond
                 
             preconditionned_G = preconditionned_g.reshape(n,r)
             aux = (jacob_c @ preconditionned_g) if loss_ord == 1 else 'we dont care'
-            gamma = (h(c(X)) - 0) / np.dot(aux,aux) if loss_ord == 1 else 0.000001
+            gamma = (h(c(X)) - 0) / np.dot(v,v) if loss_ord == 1 else 0.0000001
                       
 
         else:
             raise NotImplementedError
         
-        if method == 'gnp':
-            resids.append(np.linalg.norm(c(X)  -truncate_svd(c(X), r_true))  )
-        else:
-            resids.append(np.linalg.norm(c(X)  -truncate_svd(c(X), r_true))  )
+
         X = X - gamma*preconditionned_G
         
-    file_name = f'experiments/exp_{method}_l_{loss_ord}_r*={r_true}_r={X.shape[1]}_condn={cond_number}_trial_{trial}.csv'
-    full_path = os.path.join(base_dir, file_name)
-    np.savetxt(full_path, losses, delimiter=',') 
-    
-    file_name = f'experiments/res_{method}_l_{loss_ord}_r*={r_true}_r={X.shape[1]}_condn={cond_number}_trial_{trial}.csv'
-    full_path = os.path.join(base_dir, file_name)
-    
-    np.savetxt(full_path, resids, delimiter=',') 
     
     return losses
 
@@ -444,7 +445,7 @@ def matrix_recovery_assymetric(X0, Y0, M_star, n_iter, A, A_adj, y_true, loss_or
             preconditionned_G_y = preconditionned_g_y.reshape(*Y.shape)
             aux_x = (jac_x @ preconditionned_g_x) if loss_ord == 1 else 'we dont care'
             aux_y = (jac_y @ preconditionned_g_y) if loss_ord == 1 else 'we dont care'
-            gamma = (h(c(X,Y)) - 0) / ( np.dot(aux_x,aux_x) + np.dot(aux_y,aux_y) )  if loss_ord == 1 else 0.000001
+            gamma = (h(c(X,Y)) - 0) / ( np.dot(v,v))  if loss_ord == 1 else 0.000001
           
         
         elif method == 'scaled': #PAPER: Low-Rank Matrix Recovery with Scaled Subgradient Methods
@@ -473,10 +474,68 @@ def matrix_recovery_assymetric(X0, Y0, M_star, n_iter, A, A_adj, y_true, loss_or
     file_name = f'experiments/exp_{method}_l_{loss_ord}_r*={r_true}_r={X.shape[1]}_condn={cond_number}_trial_{trial}.csv'
     full_path = os.path.join(base_dir, file_name)
     np.savetxt(full_path, losses, delimiter=',') 
-    
-    file_name = f'experiments/res_{method}_l_{loss_ord}_r*={r_true}_r={X.shape[1]}_condn={cond_number}_trial_{trial}.csv'
     full_path = os.path.join(base_dir, file_name)
     
-    np.savetxt(full_path, resids, delimiter=',') 
     
     return losses
+
+
+
+import torch
+def retrieve_tensors(concatenated_tensor, original_shapes):
+
+   
+    lengths = [torch.prod(torch.tensor(shape)).item() for shape in original_shapes]
+
+    split_tensors = torch.split(concatenated_tensor, lengths)
+
+    return [split_tensors[i].reshape(original_shapes[i]) for i in range(len(original_shapes))]
+
+
+def random_perturbation(dimensions, delta):
+    """
+    Generates a random perturbation tensor with specified dimensions and a Frobenius norm of at least delta.
+
+    Args:
+    dimensions (tuple of ints): The shape of the tensor to generate.
+    delta (float): The minimum Frobenius norm of the generated tensor.
+
+    Returns:
+    torch.Tensor: A tensor of the specified dimensions with a Frobenius norm of at least delta.
+    """
+    # Generate a random tensor with the specified dimensions
+    perturbation = torch.randn(dimensions)
+
+    # Calculate its current Frobenius norm
+    current_norm = torch.norm(perturbation, p='fro')
+
+    # Scale the tensor to have a Frobenius norm of exactly delta
+    if current_norm > 0:
+        scale_factor = delta / current_norm
+        perturbation *= scale_factor
+    
+    # If current norm is exactly zero (rare), regenerate the tensor (recursive call)
+    if current_norm == 0:
+        return random_perturbation(dimensions, delta)
+
+    return perturbation
+
+def fill_tensor_elementwise(source, target):
+    """Fill target tensor element-wise from source tensor."""
+    if len(source.shape) == 1:
+        for i in range(source.shape[0]):
+            target[i] = source[i]
+    elif len(source.shape) == 2:
+        for i in range(source.shape[0]):
+            for j in range(source.shape[1]):
+                target[i, j] = source[i, j]
+    elif len(source.shape) == 3:
+        for i in range(source.shape[0]):
+            for j in range(source.shape[1]):
+                for k in range(source.shape[2]):
+                    target[i, j, k] = source[i, j, k]
+                    
+def thre(inputs, threshold, device):
+    return torch.sign(inputs) * torch.max( torch.abs(inputs) - threshold, torch.zeros(inputs.shape).to(device))
+
+
