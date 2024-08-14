@@ -147,20 +147,9 @@ def jacobian_g(G, U1,U2, U3):
 
 
 def jacobian_u1(G, U1, U2, U3):
-    
     m, r = U1.shape
-    n,_ = U2.shape
-    p,_ = U3.shape
+    return torch.kron(torch.eye(m), (torch.kron(U2, U3)) @ G.permute(1,2,0).reshape(r**2,r) )
     
-    res = torch.zeros((m,r, m*n*p), dtype=torch.float32, device=G.device)
-    eye_m = torch.eye(m, dtype=torch.float32, device=G.device)
-    eye_r = torch.eye(r, dtype=torch.float32, device=G.device)
-    for i_ in range(m):
-        for a_ in range(r):
-            E_ia = torch.outer(eye_m[i_], eye_r[a_])
-            res[i_, a_] = (torch.kron(torch.kron(E_ia, U2), U3)@G.reshape(-1))
-            
-    return res.reshape(m*r, m*n*p).permute(1,0)
 
 
 def jacobian_u2(G, U1, U2, U3):
