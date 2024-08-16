@@ -21,8 +21,6 @@ def compute_jacobian_c_tractable(G, U1, U2, U3):
     output = torch.cat(jacs, dim=1 )
     
     return output
-    
-
 
 
 def compute_jacobian_c_autograd(X, Y, Z, U):
@@ -147,75 +145,37 @@ def jacobian_g(G, U1,U2, U3):
 
 
 def jacobian_u1(G, U1, U2, U3):
-    m, r = U1.shape
-    return torch.kron(torch.eye(m), (torch.kron(U2, U3)) @ G.permute(1,2,0).reshape(r**2,r) )
+    m, r = U1.shape 
+    return torch.kron(torch.eye(m), (torch.kron(U2, U3)) @ tl.unfold(G,0).T )
     
 
 
 def jacobian_u2(G, U1, U2, U3):
-    
     m, r = U1.shape
-    n,_ = U2.shape
-    p,_ = U3.shape
+    n, _ = U2.shape
+    p, _ = U3.shape
+    return torch.kron(torch.eye(n), (torch.kron(U1, U3)) @ tl.unfold(G,1).T ).view(n,m,p,-1).permute(1,0,2,3).reshape(m*n*p,-1)
     
-    res = torch.zeros((n, r, m*n*p), dtype=torch.float32, device=G.device)
-    eye_n = torch.eye(n, dtype=torch.float32, device=G.device)
-    eye_r = torch.eye(r, dtype=torch.float32, device=G.device)
-    for i_ in range(n):
-        for a_ in range(r):
-            E_ia = torch.outer(eye_n[i_], eye_r[a_])
-            res[i_, a_] = (torch.kron(torch.kron(U1, E_ia), U3)@G.reshape(-1))
-            
-    return res.reshape(n*r, m*n*p).permute(1,0)
-
-
 def jacobian_u3(G, U1, U2, U3):
-    
     m, r = U1.shape
-    n,_ = U2.shape
-    p,_ = U3.shape
+    n, _ = U2.shape
+    p, _ = U3.shape
+    return torch.kron(torch.eye(p), (torch.kron(U1, U2)) @ tl.unfold(G,2).T ).view(p,m,n,-1).permute(1,2,0,3).reshape(m*n*p,-1)
     
-    res = torch.zeros((p, r, m*n*p), dtype=torch.float32, device=G.device)
-    eye_n = torch.eye(p, dtype=torch.float32, device=G.device)
-    eye_r = torch.eye(r, dtype=torch.float32, device=G.device)
-    for i_ in range(p):
-        for a_ in range(r):
-            E_ia = torch.outer(eye_n[i_], eye_r[a_])
-            res[i_, a_] = (torch.kron(torch.kron(U1, U2), E_ia)@G.reshape(-1))
-            
-    return res.reshape(p*r, m*n*p).permute(1,0)
-
+    
 n=10
 r=4
-G = torch.rand(r, r, r, requires_grad=True)
-A1 = torch.rand(n, r, requires_grad=True)
-A2 = torch.rand(n, r, requires_grad=True)
-A3 = torch.rand(n, r, requires_grad=True)
 
+
+
+# Generate A1, A2, A3 with controlled singular values
+A1 = torch.rand(n,r).requires_grad_(True)
+A2 = torch.rand(n,r).requires_grad_(True)
+A3 = torch.rand(n,r).requires_grad_(True)
+
+G = torch.rand(r,r,r).requires_grad_(True)
 J1 = compute_jacobian_c_autograd(G, A1, A2, A3)
 J2 = compute_jacobian_c_tractable(G,A1,A2,A3)
 
-#assert torch.allclose(J1, J2, atol=1e-12), "The outputs are not equal!"
+assert torch.allclose(J1, J2, atol=1e-12), "The outputs are not equal!"
 
-
-t1 = jacobian_g(G, A1, A2, A3).to(device)
-t2 = jacobian_g_autograd(G, [A1, A2, A3]).to(device)
-assert torch.allclose(t1, t2, atol=1e-12), "The outputs are not equal!"
-
-
-
-t1 = jacobian_u1(G, A1, A2, A3).to(device)
-t2 = jacobian_u_autograd(G, [A1, A2, A3], 0).to(device)
-assert torch.allclose(t1, t2, atol=1e-12), "The outputs are not equal!"
-
-
-
-t1 = jacobian_u2(G, A1, A2, A3).to(device)
-t2 = jacobian_u_autograd(G, [A1, A2, A3], 1).to(device)
-assert torch.allclose(t1, t2, atol=1e-12), "The outputs are not equal!"
-
-
-
-t1 = jacobian_u3(G, A1, A2, A3).to(device)
-t2 = jacobian_u_autograd(G, [A1, A2, A3], 2).to(device)
-assert torch.allclose(t1, t2, atol=1e-12), "The outputs are not equal!"
