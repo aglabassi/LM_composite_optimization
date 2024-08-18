@@ -73,8 +73,8 @@ def rpca_ours(G_true, factors_true, X,Y, ranks, z0, n_iter, spectral_init, pertu
         
         
     
-    G = torch.zeros(*G0.shape)
-    factors = [ torch.zeros(*f.shape) for f in factors0 ]
+    G = torch.zeros(*G0.shape).to(device)
+    factors = [ torch.zeros(*f.shape).to(device) for f in factors0 ]
     fill_tensor_elementwise(G0, G)
     for idx, factor in enumerate(factors):
         fill_tensor_elementwise(factors0[idx], factor)
@@ -102,12 +102,14 @@ def rpca_ours(G_true, factors_true, X,Y, ranks, z0, n_iter, spectral_init, pertu
         jac_c = compute_jacobian_c_tractable(G, *factors)
         
         concatenated = torch.cat([ t.reshape(-1)  for t in [G] + factors ])
-        subgradient = torch.sign( residual ).reshape(-1)
+        subgradient = torch.sign( residual ).reshape(-1).to(device)
         
         stepsize = (h_c_x - best_error) / (torch.dot(subgradient, subgradient))
         
-        concatenated = concatenated - stepsize *  (torch.linalg.pinv( jac_c.T@jac_c + (dist_to_sol_emb)*torch.eye(jac_c.shape[1]) ) ) @ (jac_c.T @ subgradient )
-        
+        try:
+            concatenated = concatenated - stepsize *  (torch.linalg.solve( jac_c.T@jac_c + (dist_to_sol_emb)*torch.eye(jac_c.shape[1]).to(device),  jac_c.T @ subgradient))
+        except:
+            concatenated = concatenated - stepsize * jac_c.T @ subgradient
         tmp = retrieve_tensors(concatenated, shapes)
 
         G = tmp[0]
@@ -146,7 +148,7 @@ def jacobian_g(G, U1,U2, U3):
 
 def jacobian_u1(G, U1, U2, U3):
     m, r = U1.shape 
-    return torch.kron(torch.eye(m), (torch.kron(U2, U3)) @ tl.unfold(G,0).T )
+    return torch.kron(torch.eye(m).to(device), (torch.kron(U2, U3)) @ tl.unfold(G,0).T )
     
 
 
@@ -154,13 +156,13 @@ def jacobian_u2(G, U1, U2, U3):
     m, r = U1.shape
     n, _ = U2.shape
     p, _ = U3.shape
-    return torch.kron(torch.eye(n), (torch.kron(U1, U3)) @ tl.unfold(G,1).T ).view(n,m,p,-1).permute(1,0,2,3).reshape(m*n*p,-1)
+    return torch.kron(torch.eye(n).to(device), (torch.kron(U1, U3)) @ tl.unfold(G,1).T ).view(n,m,p,-1).permute(1,0,2,3).reshape(m*n*p,-1)
     
 def jacobian_u3(G, U1, U2, U3):
     m, r = U1.shape
     n, _ = U2.shape
     p, _ = U3.shape
-    return torch.kron(torch.eye(p), (torch.kron(U1, U2)) @ tl.unfold(G,2).T ).view(p,m,n,-1).permute(1,2,0,3).reshape(m*n*p,-1)
+    return torch.kron(torch.eye(p).to(device), (torch.kron(U1, U2)) @ tl.unfold(G,2).T ).view(p,m,n,-1).permute(1,2,0,3).reshape(m*n*p,-1)
     
     
 n=10
