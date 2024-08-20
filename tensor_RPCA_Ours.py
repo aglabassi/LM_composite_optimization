@@ -9,7 +9,7 @@ Created on Mon Aug  5 12:40:55 2024
 
 import torch
 import tensorly as tl
-from utils import random_perturbation, fill_tensor_elementwise, retrieve_tensors, thre
+from utils import  fill_tensor_elementwise, retrieve_tensors, thre
 
 tl.set_backend('pytorch')
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -63,18 +63,18 @@ def compute_jacobian_c_autograd(X, Y, Z, U):
 
 
 
-def rpca_ours(G_true, factors_true, X,Y, ranks, z0, n_iter, spectral_init, perturb=0.1):
+def rpca_ours(G_true, factors_true, G0_init, factors0_init, X,Y, measurement_operator, ranks, z0, n_iter, spectral_init, perturb=0.1):
     
     if spectral_init:
         G0, factors0 = tl.decomposition.tucker(Y - thre(Y, z0, device), rank=ranks)
     else:      
-        G0 = (G_true + random_perturbation(G_true.shape, perturb)).clone()
-        factors0 = [ (f + random_perturbation(f.shape, perturb)).clone() for f in factors_true ]
+        G0 = G0_init.clone()
+        factors0 = [ f.clone() for f in factors0_init ]
         
         
     
-    G = torch.zeros(*G0.shape).to(device)
-    factors = [ torch.zeros(*f.shape).to(device) for f in factors0 ]
+    G = torch.zeros(*G0.shape).to(device).double()
+    factors = [ torch.zeros(*f.shape).to(device).double() for f in factors0 ]
     fill_tensor_elementwise(G0, G)
     for idx, factor in enumerate(factors):
         fill_tensor_elementwise(factors0[idx], factor)
@@ -82,30 +82,38 @@ def rpca_ours(G_true, factors_true, X,Y, ranks, z0, n_iter, spectral_init, pertu
     errs = []
     shapes = [ t.shape for t in [G] + factors ]
     best_error = torch.sum(torch.abs(X - Y))
+    best_error 
     
     for k in range(n_iter):
         
         Xk  =  tl.tucker_to_tensor((G, factors))
-        residual = Xk - Y
-        
-        
-        dist_to_sol_emb = torch.norm( Xk - X ).item()
-        h_c_x =  torch.sum(torch.abs( residual )).item()
-        
-        print(k)
-        print(dist_to_sol_emb)
-        print(h_c_x)
-        print(best_error)
-        print('---')
-        errs.append(dist_to_sol_emb)
+        residual = measurement_operator.A( Xk - Y )
         
         jac_c = compute_jacobian_c_tractable(G, *factors)
         
         concatenated = torch.cat([ t.reshape(-1)  for t in [G] + factors ])
-        subgradient = torch.sign( residual ).reshape(-1).to(device)
+        
+        dist_to_sol_emb = torch.norm( Xk - X ).item()
+        
+        #subgradient = measurement_operator.A_adj( torch.sign( residual ) ).reshape(-1) #L1
+        #h_c_x =  torch.sum(torch.abs( residual )).item()
+        
+        subgradient = measurement_operator.A_adj( residual/torch.norm(residual) ).reshape(-1) #L2
+        h_c_x =  torch.norm(residual)
+        best_error = torch.norm(X-Y)
+        
+        
+        print(k)
+        print(dist_to_sol_emb)
+        print(h_c_x)
+        print(best_error)      
+        print('---')
+        errs.append(dist_to_sol_emb)
+        
+        
         
         stepsize = (h_c_x - best_error) / (torch.dot(subgradient, subgradient))
-        
+
         try:
             concatenated = concatenated - stepsize *  (torch.linalg.solve( jac_c.T@jac_c + (dist_to_sol_emb)*torch.eye(jac_c.shape[1]).to(device),  jac_c.T @ subgradient))
         except:
@@ -141,14 +149,14 @@ def jacobian_u_autograd(G, factors, idx):
 
 
 def jacobian_g(G, U1,U2, U3):
-    return torch.kron(torch.kron(U1, U2), U3)
+    return torch.kron(torch.kron(U1, U2).double(), U3)
 
 
 
 
 def jacobian_u1(G, U1, U2, U3):
     m, r = U1.shape 
-    return torch.kron(torch.eye(m).to(device), (torch.kron(U2, U3)) @ tl.unfold(G,0).T )
+    return torch.kron(torch.eye(m).to(device).double(), (torch.kron(U2, U3)) @ tl.unfold(G,0).T )
     
 
 
@@ -156,27 +164,64 @@ def jacobian_u2(G, U1, U2, U3):
     m, r = U1.shape
     n, _ = U2.shape
     p, _ = U3.shape
-    return torch.kron(torch.eye(n).to(device), (torch.kron(U1, U3)) @ tl.unfold(G,1).T ).view(n,m,p,-1).permute(1,0,2,3).reshape(m*n*p,-1)
+    return torch.kron(torch.eye(n).to(device).double(), (torch.kron(U1, U3)) @ tl.unfold(G,1).T ).view(n,m,p,-1).permute(1,0,2,3).reshape(m*n*p,-1)
     
 def jacobian_u3(G, U1, U2, U3):
     m, r = U1.shape
     n, _ = U2.shape
     p, _ = U3.shape
-    return torch.kron(torch.eye(p).to(device), (torch.kron(U1, U2)) @ tl.unfold(G,2).T ).view(p,m,n,-1).permute(1,2,0,3).reshape(m*n*p,-1)
-    
+    return torch.kron(torch.eye(p).to(device).double(), (torch.kron(U1, U2)) @ tl.unfold(G,2).T ).view(p,m,n,-1).permute(1,2,0,3).reshape(m*n*p,-1)
+
+def generate_random_matrix_with_singular_values(n, r, L):
+    """
+    Generates a random matrix of size (n, r) with singular values defined by L.
+
+    Args:
+    - n (int): The number of rows of the matrix.
+    - r (int): The number of columns of the matrix.
+    - L (torch.Tensor): A tensor containing the desired singular values.
+
+    Returns:
+    - matrix (torch.Tensor): A random matrix of size (n, r) with controlled singular values.
+    """
+    # Ensure the number of singular values does not exceed the minimum dimension
+    min_dim = min(n, r)
+    if len(L) > min_dim:
+        raise ValueError(f"The number of singular values cannot exceed {min_dim}")
+
+    # Generate random orthogonal matrices U and V
+    U, _ = torch.qr(torch.rand(n, n))
+    V, _ = torch.qr(torch.rand(r, r))
+
+    # Construct the singular value matrix
+    S = torch.zeros(n, r)
+    diag_indices = torch.arange(len(L))
+    S[diag_indices, diag_indices] = L
+
+    # Reconstruct the matrix using U, S, and V
+    matrix = U @ S @ V.t()
+
+    return matrix.requires_grad_(True)
+
+
     
 n=10
 r=4
 
+L = torch.tensor([ 2, 1, 1 ,1.0])
+
+# A1 = torch.rand(n,r).requires_grad_(True)
+# A2 = torch.rand(n,r).requires_grad_(True)
+# A3 = torch.rand(n,r).requires_grad_(True)
+# G = torch.rand(r,r,r).requires_grad_(True)
+
+A1 = generate_random_matrix_with_singular_values(n, r, L)
+A2 = generate_random_matrix_with_singular_values(n, r, L)
+A3 = generate_random_matrix_with_singular_values(n, r, L)
 
 
-# Generate A1, A2, A3 with controlled singular values
-A1 = torch.rand(n,r).requires_grad_(True)
-A2 = torch.rand(n,r).requires_grad_(True)
-A3 = torch.rand(n,r).requires_grad_(True)
-
-G = torch.rand(r,r,r).requires_grad_(True)
-J1 = compute_jacobian_c_autograd(G, A1, A2, A3)
+G = torch.ones(r,r,r).requires_grad_(True)
+J1 = compute_jacobian_c_autograd(G, A1, A2, A3).double()
 J2 = compute_jacobian_c_tractable(G,A1,A2,A3)
 
 assert torch.allclose(J1, J2, atol=1e-12), "The outputs are not equal!"
