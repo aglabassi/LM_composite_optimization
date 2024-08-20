@@ -58,16 +58,54 @@ def min_singular_value(matrix, eps=1e-5):
     return significant_values.min()
 
 
+class TensorMeasurementOperator:
+    def __init__(self, n1, n2, n3, m, identity=False):
+        self.n1 = n1
+        self.n2 = n2
+        self.n3 = n3
+        self.m = m
+        self.identity = identity
+        
+        # Generate m measurement tensors Ai ~ N(0, 1/m)
+        self.A_tensors = torch.randn(m, n1, n2, n3, device=device).double() / torch.sqrt(torch.tensor(m, dtype=torch.float64))
 
-n_iter = 500
+    def A(self, X):
+        if self.identity:
+            # Flatten X and return
+            return X.flatten()
+        else:
+            # Apply operator A(X⋆) = {⟨Ai, X ⟩}m
+            inner_products = torch.einsum('ijkl,jkl->i', self.A_tensors, X)
+            return inner_products
+
+    def A_adj(self, y):
+        if self.identity:
+            # Reshape y back into the original tensor shape
+            return y.reshape(self.n1, self.n2, self.n3)
+        else:
+            # Compute the adjoint A*(y) = sum(y_i * Ai)
+            y_expanded = y.reshape(self.m, 1, 1, 1)  # Expand y to match dimensions
+            adjoint = torch.sum(y_expanded * self.A_tensors, dim=0)
+            return adjoint
+
+# The rest of your script remains the same...
+
+
+
+
+
+n_iter = 50
 stepsize = 0.4
 
-spectral_init = True
-radius_init = 2
-n = m = p = 20
+spectral_init = False
+radius_init = 1 
+n = m = p = 30
 r_true = 2
-r = 6
+r = 4
 kappa = 5
+
+identity = True
+target_d = n*r_true*10
 
 #Theorem 1
 decay_constant = 1-0.45*stepsize #rho in paper
@@ -83,11 +121,14 @@ corruption_factor = 0.2
 corr_scaler = 1
 
 T_true_corr = T_true + corr_scaler*torch.mul(generate_random_mask(n,n,n, corruption_factor),  generate_uniform_random(- 1* T_true.abs().mean().item(), T_true.abs().mean().item(), (n,n,n)))
+measurement_operator = TensorMeasurementOperator(n, m, p, target_d, identity=identity)
 G0, factors0 = tucker( T_true + random_perturbation((m,n,p), radius_init).to(device), rank=[r,r,r] )
 
-errs = rpca(G, factors, T_true, T_true_corr, [r,r,r], treshold_0, treshold_1, stepsize, decay_constant, n_iter, 10**-10, device, spectral_init, perturb=radius_init)
-errs_ours = rpca_ours(G, factors, T_true, T_true_corr, [r,r,r], treshold_0, n_iter, spectral_init, perturb=radius_init)
 
+
+
+#errs1 = rpca(G, factors, G0, factors0, T_true, T_true_corr, measurement_operator, [r,r,r], treshold_0, treshold_1, stepsize, decay_constant, n_iter, 10**-10, device, spectral_init, perturb=radius_init)
+errs_ours1 = rpca_ours(G, factors, G0, factors0, T_true, T_true_corr, measurement_operator, [r,r,r], treshold_0, n_iter, spectral_init, perturb=radius_init)
 
 plt.figure(figsize=(8, 5))
 plt.plot(torch.tensor(errs)/torch.norm(T_true), label='err_theirs')
