@@ -10,21 +10,20 @@ import torch
 import tensorly as tl
 from tensorly import tucker_to_tensor, tucker_to_unfolded, unfold
 from tensorly.decomposition import tucker
-from utils import random_perturbation, thre
+from utils import thre
 
 tl.set_backend('pytorch')
 
 
-def rpca(G_true, factors_true, X, Y, ranks, z0, z1, eta, decay, T, epsilon, device, spectral_init, perturb=0.1, skip=[]):
+def rpca(G_true, factors_true, G0_init, factors0_init, X, Y, measurement_operator, ranks, z0, z1, eta, decay, T, epsilon, device, spectral_init, perturb=0.1, skip=[]):
     
     torch.set_printoptions(precision=10)
-
-
+    
     ## Initialization
     if spectral_init:
         G_t, factors_t = tucker(Y - thre(Y, z0, device), rank=ranks)
     else:
-        G_t, factors_t = G_true + random_perturbation(G_true.shape, perturb), [ f + random_perturbation(f.shape, perturb)  for f in factors_true ]
+        G_t, factors_t = G0_init.clone(), [ f.clone() for f in factors0_init ]
         
     order = len(ranks)
 
@@ -40,9 +39,8 @@ def rpca(G_true, factors_true, X, Y, ranks, z0, z1, eta, decay, T, epsilon, devi
         X_t = tucker_to_tensor((G_t, factors_t))
         S_t1 = thre(Y- X_t, z1 * (decay**t), device)
         print(torch.norm(X_t - X))
-        
-        
-        errs.append(torch.norm( X_t - X ).item())
+        to_append = 1 if torch.isnan(torch.norm(X_t - X)) or torch.norm(X_t - X)/torch.norm(X) > 1000  else torch.norm(X_t - X).item()
+        errs.append(to_append)
         
         
         factors_t1 = []
