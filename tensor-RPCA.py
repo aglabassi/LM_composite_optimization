@@ -4,9 +4,11 @@
 
 import torch
 import tensorly as tl
+from tensorly.decomposition import tucker
 from tensor_RPCA_Theirs import rpca
 from tensor_RPCA_Ours import rpca_ours
 import matplotlib.pyplot as plt
+from utils import random_perturbation
 
 tl.set_backend('pytorch')
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -81,6 +83,7 @@ corruption_factor = 0.2
 corr_scaler = 1
 
 T_true_corr = T_true + corr_scaler*torch.mul(generate_random_mask(n,n,n, corruption_factor),  generate_uniform_random(- 1* T_true.abs().mean().item(), T_true.abs().mean().item(), (n,n,n)))
+G0, factors0 = tucker( T_true + random_perturbation((m,n,p), radius_init).to(device), rank=[r,r,r] )
 
 errs = rpca(G, factors, T_true, T_true_corr, [r,r,r], treshold_0, treshold_1, stepsize, decay_constant, n_iter, 10**-10, device, spectral_init, perturb=radius_init)
 errs_ours = rpca_ours(G, factors, T_true, T_true_corr, [r,r,r], treshold_0, n_iter, spectral_init, perturb=radius_init)
