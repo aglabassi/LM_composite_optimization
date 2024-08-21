@@ -63,7 +63,7 @@ def compute_jacobian_c_autograd(X, Y, Z, U):
 
 
 
-def rpca_ours(G_true, factors_true, G0_init, factors0_init, X,Y, measurement_operator, ranks, z0, n_iter, spectral_init, perturb=0.1):
+def rpca_ours(G_true, factors_true, G0_init, factors0_init, X,Y, measurement_operator, ranks, z0, n_iter, spectral_init, perturb=0.1, fix_G=False):
     
     if spectral_init:
         G0, factors0 = tl.decomposition.tucker(Y - thre(Y, z0, device), rank=ranks)
@@ -72,6 +72,8 @@ def rpca_ours(G_true, factors_true, G0_init, factors0_init, X,Y, measurement_ope
         factors0 = [ f.clone() for f in factors0_init ]
         
         
+    r = G_true.shape[0]
+    delim = r**3 if fix_G else 0 
     
     G = torch.zeros(*G0.shape).to(device).double()
     factors = [ torch.zeros(*f.shape).to(device).double() for f in factors0 ]
@@ -113,11 +115,12 @@ def rpca_ours(G_true, factors_true, G0_init, factors0_init, X,Y, measurement_ope
         
         
         stepsize = (h_c_x - best_error) / (torch.dot(subgradient, subgradient))
-
         try:
-            concatenated = concatenated - stepsize *  (torch.linalg.solve( jac_c.T@jac_c + (dist_to_sol_emb)*torch.eye(jac_c.shape[1]).to(device),  jac_c.T @ subgradient))
+            concatenated[delim:] = concatenated[delim:] - stepsize *  (torch.linalg.solve( jac_c.T@jac_c + (dist_to_sol_emb)*torch.eye(jac_c.shape[1]).to(device),  jac_c.T @ subgradient))[delim:]  #FIX CP Decomp   
         except:
-            concatenated = concatenated - stepsize * jac_c.T @ subgradient
+            concatenated[delim:] = concatenated[delim:] - stepsize * (jac_c.T @ subgradient)[delim:]#FIX CP Decomp
+            
+            
         tmp = retrieve_tensors(concatenated, shapes)
 
         G = tmp[0]

@@ -4,7 +4,7 @@
 
 import torch
 import tensorly as tl
-from tensorly.decomposition import tucker
+from tensorly.decomposition import tucker, parafac
 from tensor_RPCA_Theirs import rpca
 from tensor_RPCA_Ours import rpca_ours
 import matplotlib.pyplot as plt
@@ -21,7 +21,7 @@ def generate_tensor(n, r_true, r, kappa):
     core_G = torch.zeros((r_true, r_true, r_true), device=device).double()
     indices = torch.arange(r_true, device=device).long()
     core_G[indices, indices, indices] = kappa ** (-indices.double() / (r_true))
-
+    
     mu = (n / r_true) * max(torch.max(torch.norm(U1, dim=0, p=float('inf'))),
                             torch.max(torch.norm(U2, dim=0, p=float('inf'))),
                             torch.max(torch.norm(U3, dim=0, p=float('inf'))))
@@ -33,7 +33,10 @@ def generate_tensor(n, r_true, r, kappa):
     U2_extended = torch.cat((U2, torch.zeros(n, r - r_true).double()), dim=1)
     U3_extended = torch.cat((U3, torch.zeros(n, r - r_true).double()), dim=1)
     
-    return tl.tucker_to_tensor((core_G, [U1, U2, U3])), mu, core_G_extended, [U1_extended, U2_extended, U3_extended]
+    indices_r = torch.arange(r, device=device).long() #FIX CP Decomp
+    core_G_extended[indices_r, indices_r, indices_r] = 1#FIX CP Decomp
+    
+    return mu, core_G_extended, [U1_extended, U2_extended, U3_extended]
 
 
 def matrixise(T, mode):
@@ -94,14 +97,18 @@ class TensorMeasurementOperator:
 
 
 
-n_iter = 50
+n_iter = 200
 stepsize = 0.4
+r_true = 2
+fix_G = True
+
 
 spectral_init = False
-radius_init = 1 
-n = m = p = 30
-r_true = 2
-r = 4
+radius_init = 1
+
+
+n = m = p = 20
+r = 2
 kappa = 5
 
 identity = True
@@ -110,28 +117,33 @@ target_d = n*r_true*10
 #Theorem 1
 decay_constant = 1-0.45*stepsize #rho in paper
 
-T_true, mu, G, factors = generate_tensor(n, r_true, r, kappa)
+mu, G, factors = generate_tensor(n, r_true, r, kappa)
+T_true = tl.tucker_to_tensor((G, factors))
+mu 
 treshold_0 = 1.5*T_true.abs().max().item() #zeta_0 in paper
 treshold_1 = (2*torch.sqrt(mu*r/n))**3*min( min_singular_value(matrixise(T_true, 0)),
                                         min_singular_value(matrixise(T_true, 1)),
                                         min_singular_value(matrixise(T_true, 2))) #zeta_1 in paper
 
 corruption_factor = 100/torch.sqrt(kappa*((mu*r)**3)) #alpha in paper
-corruption_factor = 0.2
-corr_scaler = 0
+corruption_factor = 0
+corr_scaler = 1000
 
 T_true_corr = T_true + corr_scaler*torch.mul(generate_random_mask(n,n,n, corruption_factor),  generate_uniform_random(- 1* T_true.abs().mean().item(), T_true.abs().mean().item(), (n,n,n)))
 measurement_operator = TensorMeasurementOperator(n, m, p, target_d, identity=identity)
 
 
-G0, factors0 = tucker( T_true + random_perturbation((m,n,p), radius_init).to(device), rank=[r,r,r] )
+if fix_G:
+    G0 = G.clone()
+    factors0 = parafac(T_true + random_perturbation((m,n,p), radius_init).to(device), rank=r )[1]
+    
+else:
+    G0, factors0 = tucker( T_true + random_perturbation((m,n,p), radius_init).to(device), rank=[r,r,r] )
 
 
-
-
-#errs1 = rpca(G, factors, G0, factors0, T_true, T_true_corr, measurement_operator, [r,r,r], treshold_0, treshold_1, stepsize, decay_constant, n_iter, 10**-10, device, spectral_init, perturb=radius_init)
-errs_ours1 = rpca_ours(G, factors, G0, factors0, T_true, T_true_corr, measurement_operator, [r,r,r], treshold_0, n_iter, spectral_init, perturb=radius_init)
-label1 = f"n={n}"
+errs1 = rpca(G, factors, G0, factors0, T_true, T_true_corr, measurement_operator, [r,r,r], treshold_0, treshold_1, stepsize, decay_constant, n_iter, 10**-10, device, spectral_init, perturb=radius_init, fix_G=fix_G)
+errs_ours1 = rpca_ours(G, factors, G0, factors0, T_true, T_true_corr, measurement_operator, [r,r,r], treshold_0, n_iter, spectral_init, perturb=radius_init, fix_G=fix_G)
+label1 = f"n={n}, r={r}"
 
 plt.figure(figsize=(8, 5))
 plt.plot(torch.tensor(errs1)/torch.norm(T_true), label=f'Theirs {label1}')
@@ -141,65 +153,67 @@ plt.plot(torch.tensor(errs_ours1)/torch.norm(T_true), label=f'Ours {label1}')
 plt.xlabel('iteration')
 plt.ylabel('error')
 plt.yscale('log')
-plt.title(f'\| c(xt) - c(x*) \|_2 / \| c(x*) \|_2 ,r*={r_true}, r={r}, spectral init = {spectral_init}')
+plt.title(f'\| c(xt) - c(x*) \|_2 / \| c(x*) \|_2 ,r*={r_true}, spectral init = {spectral_init}')
 plt.legend()
 
 # Show the plot
 plt.show()
-
-# #-----------
-
-# n_iter = 5000
-# stepsize = 0.4
-
-# spectral_init = False
-# radius_init = 0.1
-# n = m = p = 30
-# r_true = 2
-# r = 10
-# kappa = 5
-
-# #Theorem 1
-# decay_constant = 1-0.45*stepsize #rho in paper
-
-# T_true, mu, G, factors = generate_tensor(n, r_true, r, kappa)
-# treshold_0 = 1.5*T_true.abs().max().item() #zeta_0 in paper
-# treshold_1 = (2*torch.sqrt(mu*r/n))**3*min( min_singular_value(matrixise(T_true, 0)),
-#                                         min_singular_value(matrixise(T_true, 1)),
-#                                         min_singular_value(matrixise(T_true, 2))) #zeta_1 in paper
-
-# corruption_factor = 100/torch.sqrt(kappa*((mu*r)**3)) #alpha in paper
-# corruption_factor = 0.2
-# corr_scaler = 0
-
-# T_true_corr = T_true + corr_scaler*torch.mul(generate_random_mask(n,n,n, corruption_factor),  generate_uniform_random(- 1* T_true.abs().mean().item(), T_true.abs().mean().item(), (n,n,n)))
-
-
-# G0 = (G + random_perturbation(G.shape, radius_init)).clone()
-# factors0 = [ (f + random_perturbation(f.shape, radius_init)).clone() for f in factors ]
+print(errs_ours1[0])
+#-----------
 
 
 
+n = m = p = 10
+r = 5
 
-# errs2 = rpca(G, factors, G0, factors0, T_true, T_true_corr, [r,r,r], treshold_0, treshold_1, stepsize, decay_constant, n_iter, 10**-10, device, spectral_init, perturb=radius_init)
-# errs_ours2 = rpca_ours(G, factors, G0, factors0, T_true, T_true_corr, [r,r,r], treshold_0, n_iter, spectral_init, perturb=radius_init)
-# label2 = f"n={n}"
+
+
+mu, G, factors = generate_tensor(n, r_true, r, kappa)
+T_true = tl.tucker_to_tensor((G, factors))
+mu 
+treshold_0 = 1.5*T_true.abs().max().item() #zeta_0 in paper
+treshold_1 = (2*torch.sqrt(mu*r/n))**3*min( min_singular_value(matrixise(T_true, 0)),
+                                        min_singular_value(matrixise(T_true, 1)),
+                                        min_singular_value(matrixise(T_true, 2))) #zeta_1 in paper
+
+corruption_factor = 100/torch.sqrt(kappa*((mu*r)**3)) #alpha in paper
+corruption_factor = 0
+corr_scaler = 1000
+
+T_true_corr = T_true + corr_scaler*torch.mul(generate_random_mask(n,n,n, corruption_factor),  generate_uniform_random(- 1* T_true.abs().mean().item(), T_true.abs().mean().item(), (n,n,n)))
+measurement_operator = TensorMeasurementOperator(n, m, p, target_d, identity=identity)
+
+
+if fix_G:
+    G0 = G.clone()
+    factors0 = parafac(T_true + random_perturbation((m,n,p), radius_init).to(device), rank=r )[1]
+    
+else:
+    G0, factors0 = tucker( T_true + random_perturbation((m,n,p), radius_init).to(device), rank=[r,r,r] )
 
 
 
 
-# plt.figure(figsize=(8, 5))
-# plt.plot(torch.tensor(errs1)/torch.norm(T_true), label=f'Theirs {label1}')
-# plt.plot(torch.tensor(errs_ours1)/torch.norm(T_true), label=f'Ours {label1}')
-# plt.plot(torch.tensor(errs2)/torch.norm(T_true), label=f'Theirs {label2}')
-# plt.plot(torch.tensor(errs_ours2)/torch.norm(T_true), label=f'Ours {label2}')
 
-# # Add labels and title
-# plt.xlabel('iteration')
-# plt.ylabel('error')
-# plt.yscale('log')
-# plt.title(f'\| c(xt) - c(x*) \|_2 / \| c(x*) \|_2 , spectral init = {spectral_init}')
-# plt.legend()
+errs2 = rpca(G, factors, G0, factors0, T_true, T_true_corr, measurement_operator, [r,r,r], treshold_0, treshold_1, stepsize, decay_constant, n_iter, 10**-10, device, spectral_init, perturb=radius_init, fix_G=fix_G)
+errs_ours2 = rpca_ours(G, factors, G0, factors0, T_true, T_true_corr, measurement_operator, [r,r,r], treshold_0, n_iter, spectral_init, perturb=radius_init, fix_G=fix_G)
+label2 = f"n={n}, r={r}"
 
-# # Show the plot
-# plt.show()
+
+
+
+plt.figure(figsize=(8, 5))
+plt.plot(torch.tensor(errs1)/torch.norm(T_true), label=f'Theirs {label1}')
+plt.plot(torch.tensor(errs_ours1)/torch.norm(T_true), label=f'Ours {label1}')
+plt.plot(torch.tensor(errs2)/torch.norm(T_true), label=f'Theirs {label2}')
+plt.plot(torch.tensor(errs_ours2)/torch.norm(T_true), label=f'Ours {label2}')
+
+# Add labels and title
+plt.xlabel('iteration')
+plt.ylabel('error')
+plt.yscale('log')
+plt.title(f'|| c(xt) - c(x*) || / || c(x*) ||, fix_G={fix_G}, r*={r_true}, radius init = {radius_init}')
+plt.legend()
+
+# Show the plot
+plt.show()
