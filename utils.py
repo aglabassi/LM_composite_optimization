@@ -8,87 +8,86 @@ Created on Wed Jan 17 10:53:34 2024
 
 import numpy as np
 import matplotlib.pyplot as plt
-import itertools
 from scipy.linalg import sqrtm
 import os
 from scipy.linalg import svd
 
-def plot_losses_with_styles(losses_scaled, losses_gnp, lambdaa_scaled, lambdaa_gnp, cond_numbers, ranks, r_true, loss_ord, base_dir, n_trial, res, symmetric, num_dots=20):
+def plot_losses_with_styles(losses, r_true, loss_ord, base_dir, symmetric, num_dots=20):
     # Define color palettes for 'scaled' (blue family) and 'gn' (red family)
- 
-    blue_palette = ['#0d47a1', '#1976d2', '#2196f3', '#64b5f6', '#bbdefb']
-    # Shades of red for 'gn' (warm colors)
-    red_palette = ['#b71c1c', '#e53935', '#ef5350', '#e57373', '#ffcdd2']
+    
+    methods = losses.keys()
+    for m in methods:
+        for m2 in methods:
+            assert losses[m].keys() == losses[m2].keys()
+    
+    colors_list = [
+        ['#0d47a1', '#1976d2', '#2196f3', '#64b5f6', '#bbdefb'],  # Blue palette
+        ['#b71c1c', '#e53935', '#ef5350', '#e57373', '#ffcdd2'],  # Red palette
+        ['#4a148c', '#8e24aa', '#ab47bc', '#ce93d8', '#e1bee7'],  # Purple palette
+        ['#1b5e20', '#388e3c', '#4caf50', '#81c784', '#c8e6c9'],  # Green palette
+        ['#f57f17', '#fbc02d', '#ffeb3b', '#fff176', '#fff9c4']   # Yellow palette
+    ]
+    
+    assert len(colors_list) >= len(methods) #enough colors for each method
 
 
     markers = ['o', 's', '^', 'D', '*', 'p', 'h', 'x']  # Different markers for different condition numbers
     linestyles = ['-', '--', '-.', ':']  # Different linestyles for different ranks
     
-    # Generate labels for plots
-    labels_scaled = [f'scaled, r={r}, cond_n={c}' for c in cond_numbers for r in ranks]
-    labels_gn = [f'gn, r={r}, cond_n={c}' for c in cond_numbers for r in ranks]
-
-    labels = labels_scaled + labels_gn
+    
 
 
-    # Assign colors, markers, and linestyles
-    blue_colors_cycle = itertools.cycle(blue_palette)
-    red_colors_cycle = itertools.cycle(red_palette)
-    plot_colors = [next(blue_colors_cycle) if i < len(labels_scaled) else next(red_colors_cycle) for i in range(len(labels))]
-
-    markers_cycle = itertools.cycle(markers)
-    plot_markers = {c: next(markers_cycle) for c in cond_numbers}
-    linestyles_cycle = itertools.cycle(linestyles)
-    plot_linestyles = {r: next(linestyles_cycle) for r in ranks}
 
     # Prepare the plot
     plt.figure(figsize=(10, 6))
-    lines = []  # To store line objects for the legend
-    for i, label in enumerate(labels):
-        color = plot_colors[i]
-        cond_n, r = label.split(',')[2].strip(), label.split(',')[1].strip()
-        marker = plot_markers[int(cond_n.split('=')[1])]
-        linestyle = plot_linestyles[int(r.split('=')[1])]
+    
+    keys = losses[list(methods)[0]].keys()
+    
+    rs = []
+    cs = []
+    for k in keys:
+        r,c = k
+        if r not in rs:
+            rs.append(r)
+        if c not in cs:
+            cs.append(c)
+    
+    for idx_m, method in enumerate(methods):
+        for idx, k in enumerate(keys):
+            r_index = rs.index(k[0])
+            c_index = cs.index(k[1])
+            errs = losses[method][k]
+            
+            color = colors_list[idx_m][idx]
+
+            
+            marker = markers[c_index]
+            linestyle = linestyles[r_index]
+            indices = np.arange(0, len(errs), num_dots)
+            plt.plot(
+                indices,
+                errs[indices],
+                linestyle=linestyle,
+                color=color,
+                marker=marker,
+                label=(
+                    f'{method} {", overparam." if k[0] > r_true else ""} '
+                    f'{", ill-conditioned" if k[1] > 1 else ""}'
+                )
+            )
         
-        loss_data = losses_scaled[i] if i < len(losses_scaled) else losses_gnp[i - len(losses_scaled)]
-        
-        # Plot the line
-        line, = plt.plot(loss_data, color=color, linestyle=linestyle)
-        
-        # Calculate indices for evenly spaced markers
-        if len(loss_data) > 1:  # Ensure there's data to plot
-            indices = np.round(np.linspace(0, len(loss_data) - 1, num_dots)).astype(int)
-            # Plot markers at these indices
-            plt.plot(indices, [loss_data[idx] for idx in indices], linestyle='None', marker=marker, color=color)
-        
-        # Add a dummy line to the list for creating a custom legend
-        lines.append(plt.Line2D([0], [0], color=color, linestyle=linestyle, marker=marker, label=label))
-      
-    if not res:
-        plt.title(f'Matrix Recovery with l{loss_ord} norm, {("BM" if symmetric else "assymetric") + " factor"}, $r^*={r_true}$')
-    else:
-        plt.title(f'$\\gamma^2 \| \\nabla^\dagger C v \|^2$, $r^*={r_true}$, '
-              f'$\\lambda_{{scaled}}={lambdaa_scaled}$, '
-              f'$\\lambda_{{gnp}}={lambdaa_gnp}$, loss=l{loss_ord}, $n_{{trial}}=${n_trial}')
+          
+  
+    plt.title(rf'Matrix Sensing with $\ell_{loss_ord}-norm$, {("Burer-Monteiro" if symmetric else "assymetric") + " factor"}')
     
     plt.xlabel('Iteration')
-    plt.ylabel('Distance to M*')
+    plt.ylabel(r'Distance to $M^\ast$')
     plt.yscale('log')
-    
-    lines[1], lines[2] = lines[2], lines[1]
-
-    labels[1], labels[2] = labels[2], labels[1]
-    
-
-    lines[5], lines[6] = lines[6], lines[5]
-
-    labels[5], labels[6] = labels[6], labels[5]
-    
 
     
     # Create a custom legend
-    plt.legend(handles=lines)
-    fig_path = os.path.join(base_dir, f'experiments/{"res" if res else "exp"}_l{loss_ord}_n_trial_{n_trial}.png')
+    plt.legend()
+    fig_path = os.path.join(base_dir, f'experiments/exp_l{loss_ord}.png')
     plt.savefig(fig_path, dpi=300)
     plt.show()
 
@@ -200,7 +199,7 @@ def truncate_svd(matrix, k):
 
 
 
-def matrix_recovery(X0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond_number, lambdaa, method, base_dir, trial):
+def matrix_recovery(X0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond_number, method, base_dir, trial):
     
     def c(x):
         return x @ x.T 
@@ -305,44 +304,64 @@ def matrix_recovery(X0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond
         
         g = jacob_c.T @ v
         
-        dampling = lambdaa if lambdaa != 'Liwei' else np.linalg.norm(c(X) - M_star, ord='fro')
+        
+        
+        
         
             
-        if method=='scaled':#PAPER: Low-Rank Matrix Recovery with Scaled Subgradient Methods
-
-            residual = (A(X@X.T) - y_true) if loss_ord==2 else np.sign(A(X@X.T) - y_true)
-            precondionner_inv =   np.eye(r,r) #(np.inv()) for scaled
-
+        if method == 'scaled_GD' or method == 'scaled_subGD' or method == 'pred_GD'  or method == 'scaled_GD_lambda': #PAPER: Low-Rank Matrix Recovery with Scaled Subgradient Methods
+        
+           
+            if method == 'scaled_GD' or 'scaled_subGD':
+                dampling = 0
+            elif method == 'pred_GD':
+                dampling = np.linalg.norm(c(X) - M_star, ord='fro')
+            elif method == 'scaled_GD_lambda':
+                dampling = 10**-16
+            
+            precondionner_inv =   np.linalg.inv( X.T@X + dampling* np.eye(r) )  #(np.inv()) for scaled
+            
             
             G = g.reshape(*X.shape)
             preconditionned_G = G @ precondionner_inv
-            aux = G @ sqrtm(precondionner_inv) if loss_ord==1 else 'we dont care'
-            gamma = (h(c(X)) - 0) / np.sum(np.multiply(g,g)) if loss_ord == 1 else 0.0000001
-                
+            aux = G @ sqrtm(precondionner_inv)
+            gamma = (h(c(X)) - 0) / (np.sum(np.multiply(aux,aux))) if method == 'scaled_subGD' else  0.000001
+            #constant 
+            #gamma = 0.000001
+            
+               
         elif method=='gnp':
             
             try:
+                dampling = np.linalg.norm(c(X) - M_star, ord='fro')
                 preconditionned_g, _,_,_ = np.linalg.lstsq(jacob_c.T @ jacob_c + dampling*np.eye(jacob_c.shape[1],jacob_c.shape[1]), g, rcond=-1)
             except:
                 preconditionned_g = g #No precondionning 
                 
             preconditionned_G = preconditionned_g.reshape(n,r)
-            aux = (jacob_c @ preconditionned_g) if loss_ord == 1 else 'we dont care'
-            gamma = (h(c(X)) - 0) / np.dot(v,v) if loss_ord == 1 else 0.0000001
-                      
+            gamma = 2*(h(c(X)) - 0) / np.dot(v,v)
+        elif method == 'subGD':
+            preconditionned_G  = g.reshape(n,r)
+            gamma = (h(c(X)) - 0) / np.sum(np.multiply(g,g))
+            
 
         else:
             raise NotImplementedError
         
 
         X = X - gamma*preconditionned_G
-        
+    
+    file_name = f'experiments/exp_{method}_l_{loss_ord}_r*={r_true}_r={X.shape[1]}_condn={cond_number}_trial_{trial}.csv'
+    full_path = os.path.join(base_dir, file_name)
+    np.savetxt(full_path, losses, delimiter=',') 
+    full_path = os.path.join(base_dir, file_name)
+    
     
     return losses
 
 
 
-def matrix_recovery_assymetric(X0, Y0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond_number, lambdaa, method, base_dir, trial):
+def matrix_recovery_assymetric(X0, Y0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond_number, method, base_dir, trial):
     
     def c(X,Y):
         return X @ Y.T 
@@ -400,7 +419,6 @@ def matrix_recovery_assymetric(X0, Y0, M_star, n_iter, A, A_adj, y_true, loss_or
     X = X0.copy()
     Y = Y0.copy()
     losses = []
-    resids = []
 
     n,r = X.shape
     for t in range(n_iter):
@@ -429,12 +447,14 @@ def matrix_recovery_assymetric(X0, Y0, M_star, n_iter, A, A_adj, y_true, loss_or
         g_x = jac_x.T @ v
         g_y = jac_y.T @ v
         
-        dampling = lambdaa if lambdaa != 'Liwei' else np.linalg.norm(c(X,Y) - M_star, ord='fro')
+       
         
       
         if method=='gnp':
+            dampling = np.linalg.norm(c(X,Y) - M_star, ord='fro')
             
             try:
+                
                 preconditionned_g_x, _,_,_ = np.linalg.lstsq(jac_x.T @ jac_x + dampling*np.eye(jac_x.shape[1],jac_x.shape[1]), g_x, rcond=-1)
                 preconditionned_g_y, _,_,_ = np.linalg.lstsq(jac_y.T @ jac_y + dampling*np.eye(jac_y.shape[1],jac_y.shape[1]), g_y, rcond=-1)
             except:
@@ -443,27 +463,37 @@ def matrix_recovery_assymetric(X0, Y0, M_star, n_iter, A, A_adj, y_true, loss_or
                 
             preconditionned_G_x = preconditionned_g_x.reshape(*X.shape)
             preconditionned_G_y = preconditionned_g_y.reshape(*Y.shape)
-            aux_x = (jac_x @ preconditionned_g_x) if loss_ord == 1 else 'we dont care'
-            aux_y = (jac_y @ preconditionned_g_y) if loss_ord == 1 else 'we dont care'
-            gamma = (h(c(X,Y)) - 0) / ( np.dot(v,v))  if loss_ord == 1 else 0.000001
+            gamma = 1.5*(h(c(X,Y)) - 0) / ( np.dot(v,v) ) 
           
         
-        elif method == 'scaled': #PAPER: Low-Rank Matrix Recovery with Scaled Subgradient Methods
-            preconditionner_x = np.linalg.inv(Y.T@Y + dampling* np.eye(X.shape[1]))
-            preconditionner_y = np.linalg.inv(X.T@X + dampling* np.eye(Y.shape[1]))
-            G_x = g_x.reshape(*X.shape)
-            G_y = g_y.reshape(*Y.shape)
-            preconditionned_G_x = G_x @ preconditionner_x
-            preconditionned_G_y = G_y @ preconditionner_y
-            preconditionned_g_x = preconditionned_G_x.reshape(-1)
-            preconditionned_g_y = preconditionned_G_y.reshape(-1)
+        elif method == 'scaled_GD' or method == 'scaled_subGD' or method == 'pred_GD'  or method == 'scaled_GD_lambda': #PAPER: Low-Rank Matrix Recovery with Scaled Subgradient Methods
             
-            aux_x = G_x @ sqrtm(preconditionner_x) if loss_ord==1 else 'we dont care'
-            aux_y = G_y @ sqrtm(preconditionner_y) if loss_ord==1 else 'we dont care'
-            gamma = (h(c(X,Y)) - 0) / (np.sum(np.multiply(aux_x,aux_x)) + np.sum(np.multiply(aux_y, aux_y))) if loss_ord == 1 else 0.000001
-            
-                      
-
+           
+           if method == 'scaled_GD' or 'scaled_subGD':
+               dampling = 0
+           elif method == 'pred_GD':
+               dampling = np.linalg.norm(c(X,Y) - M_star, ord='fro')
+           elif method == 'scaled_GD_lambda':
+               dampling = 10**-16
+           
+           preconditionner_x = np.linalg.inv(Y.T@Y + dampling* np.eye(X.shape[1]))
+           preconditionner_y = np.linalg.inv(X.T@X + dampling* np.eye(Y.shape[1]))
+           dampling
+           G_x = g_x.reshape(*X.shape)
+           G_y = g_y.reshape(*Y.shape)
+           preconditionned_G_x = G_x @ preconditionner_x
+           preconditionned_G_y = G_y @ preconditionner_y
+           preconditionned_g_x = preconditionned_G_x.reshape(-1)
+           preconditionned_g_y = preconditionned_G_y.reshape(-1)
+           
+           aux_x = G_x @ sqrtm(preconditionner_x) 
+           aux_y = G_y @ sqrtm(preconditionner_y) 
+           gamma = (h(c(X,Y)) - 0) / (np.sum(np.multiply(aux_x,aux_x)) + np.sum(np.multiply(aux_y, aux_y))) if method == 'scaled_subGD' else  0.000001
+        
+        elif method == 'subGD': 
+            preconditionned_G_x = g_x.reshape(*X.shape)
+            preconditionned_G_y = g_y.reshape(*Y.shape)
+            gamma = (h(c(X,Y)) - 0) /  np.sum(np.multiply( g_x, g_x)) + np.sum(np.multiply( g_y, g_y)) 
         else:
             raise NotImplementedError
         
@@ -537,5 +567,7 @@ def fill_tensor_elementwise(source, target):
                     
 def thre(inputs, threshold, device):
     return torch.sign(inputs) * torch.max( torch.abs(inputs) - threshold, torch.zeros(inputs.shape).to(device))
+
+
 
 
