@@ -11,8 +11,79 @@ import matplotlib.pyplot as plt
 from scipy.linalg import sqrtm
 import os
 from scipy.linalg import svd
+import glob
 
-def plot_losses_with_styles(losses, r_true, loss_ord, base_dir, symmetric, num_dots=20):
+def collect_compute_mean(keys, loss_ord, r_true, res, methods, problem):
+    losses = dict(( method, dict()) for method in methods )
+
+    for rank, cond_number in keys:
+        for method in methods:
+            tensor = '' if problem != 'tensor' else "tensor"
+            file_pattern = f"experiments/{('res' if res else 'exp') + tensor}_{method}_l_{loss_ord}_r*={r_true}_r={rank}_condn={cond_number}_trial_*.csv"
+            file_list = glob.glob(file_pattern)
+            data_list = []
+            
+            # Read each file and append its data to the data_list
+            for file in file_list:
+                data_list.append(np.loadtxt(file, delimiter=','))  # Assume the CSV is correctly formatted for np.loadtxt
+            
+            # Convert the list of arrays into a 2D numpy array for easier manipulation
+            data_array = np.array(data_list)
+            
+            # Compute the mean across all trials (rows) for each experiment
+            mean_values = np.mean(data_array, axis=0)
+            losses[method][(rank, cond_number)]  = mean_values
+   
+    return losses
+
+
+
+def trial_execution_matrix(trials, n, r_true, d, keys, init_radius_ratio, T, loss_ord, base_dir, methods, symmetric=True):
+    
+    for trial in trials:
+        A, A_adj = create_rip_transform(n, d)
+    
+        for r, cond_number in keys:
+            X_true = generate_matrix_with_condition(n, r_true, cond_number)
+            Y_true = generate_matrix_with_condition(n, r_true, cond_number)
+            
+            if symmetric:
+                M_true =  X_true @ X_true.T
+            else:
+                M_true = X_true @ Y_true.T
+                
+                
+                
+            y_true = A(M_true)
+    
+            radius_x = init_radius_ratio*np.linalg.norm(X_true, ord='fro')
+            radius_y = init_radius_ratio*np.linalg.norm(Y_true, ord='fro')
+
+
+            X_padded = np.zeros((n, r))
+            Y_padded = np.zeros((n, r))
+            X_padded[:, :r_true] = X_true
+            Y_padded[:, :r_true] = Y_true
+            
+            X0 = gen_random_point_in_neighborhood(X_true, radius_x, r, r_true)
+            Y0 = gen_random_point_in_neighborhood(Y_true, radius_y, r, r_true)
+            
+
+        
+            for method in methods:
+                if symmetric:
+                    matrix_recovery(X0, M_true, T, A, A_adj, y_true, loss_ord, r_true, cond_number, method, base_dir, trial)
+                else:
+                    matrix_recovery_assymetric(X0, Y0, M_true, T, A, A_adj, y_true, loss_ord, r_true, cond_number, method, base_dir, trial)
+                    
+    return 'we dont care'
+
+
+
+
+
+
+def plot_losses_with_styles(losses, r_true, loss_ord, base_dir, problem, num_dots=20):
     # Define color palettes for 'scaled' (blue family) and 'gn' (red family)
     
     methods = losses.keys()
@@ -77,8 +148,8 @@ def plot_losses_with_styles(losses, r_true, loss_ord, base_dir, symmetric, num_d
             )
         
           
-  
-    plt.title(rf'Matrix Sensing with $\ell_{loss_ord}-norm$, {("Burer-Monteiro" if symmetric else "assymetric") + " factor"}')
+    object_ = 'Matrix' if problem == 'Burer-Monteiro' or problem == 'Left-Right' else 'Tensor'
+    plt.title(rf'{ object_ } sensing with $\ell_{loss_ord}-norm$, {problem}')
     
     plt.xlabel('Iteration')
     plt.ylabel(r'Distance to $M^\ast$')

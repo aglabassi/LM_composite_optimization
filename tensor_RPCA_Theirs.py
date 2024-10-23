@@ -11,14 +11,16 @@ import tensorly as tl
 from tensorly import tucker_to_tensor, tucker_to_unfolded, unfold
 from tensorly.decomposition import tucker
 from utils import thre
-
+import numpy as np
+import os
 tl.set_backend('pytorch')
 
 
-def rpca(G_true, factors_true, G0_init, factors0_init, X, Y, measurement_operator, ranks, z0, z1, eta, decay, T, epsilon, device, spectral_init, perturb=0.1,fix_G=False, skip=[]):
+def rpca(G_true, factors_true, G0_init, factors0_init, X, Y, measurement_operator, r_true, cond_number, ranks, z0, z1, eta, decay, T, epsilon, device, spectral_init, base_dir, loss_ord, perturb=0.1,fix_G=False, skip=[]):
     
     torch.set_printoptions(precision=10)
-    
+    r = ranks[0]
+    assert loss_ord == 2 # no l1 possible
     ## Initialization
     if spectral_init:
         G_t, factors_t = tucker(Y - thre(Y, z0, device), rank=ranks)
@@ -79,4 +81,11 @@ def rpca(G_true, factors_true, G0_init, factors0_init, X, Y, measurement_operato
         factors_t = factors_t1
         G_t = G_t1
         
-    return errs
+    file_name = f'experiments/exptensor_scaled_GD_l_{loss_ord}_r*={r_true}_r={r}_condn={cond_number}_trial_{0}.csv'
+    full_path = os.path.join(base_dir, file_name)
+    np.savetxt(full_path, errs, delimiter=',') 
+    full_path = os.path.join(base_dir, file_name)
+        
+    return 'dont care'
+
+
