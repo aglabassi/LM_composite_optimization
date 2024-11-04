@@ -18,8 +18,7 @@ def collect_compute_mean(keys, loss_ord, r_true, res, methods, problem):
 
     for rank, cond_number in keys:
         for method in methods:
-            tensor = '' if problem != 'tensor' else "tensor"
-            file_pattern = f"experiments/{('res' if res else 'exp') + tensor}_{method}_l_{loss_ord}_r*={r_true}_r={rank}_condn={cond_number}_trial_*.csv"
+            file_pattern = f"experiments/{('res' if res else 'exp') + problem}_{method}_l_{loss_ord}_r*={r_true}_r={rank}_condn={cond_number}_trial_*.csv"
             file_list = glob.glob(file_pattern)
             data_list = []
             
@@ -74,7 +73,7 @@ def trial_execution_matrix(trials, n, r_true, d, keys, init_radius_ratio, T, los
                 if symmetric:
                     matrix_recovery(X0, M_true, T, A, A_adj, y_true, loss_ord, r_true, cond_number, method, base_dir, trial)
                 else:
-                    matrix_recovery_assymetric(X0, Y0, M_true, T, A, A_adj, y_true, loss_ord, r_true, cond_number, method, base_dir, trial)
+                    matrix_recovery_assymetric(X0, Y0, X_true, Y_true, M_true, T, A, A_adj, y_true, loss_ord, r_true, cond_number, method, base_dir, trial)
                     
     return 'we dont care'
 
@@ -378,30 +377,30 @@ def matrix_recovery(X0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond
         
         
         
-        
+        constant_stepsize =  0.000001
             
         if method == 'scaled_GD' or method == 'scaled_subGD' or method == 'pred_GD'  or method == 'scaled_GD_lambda': #PAPER: Low-Rank Matrix Recovery with Scaled Subgradient Methods
         
            
-            if method == 'scaled_GD' or 'scaled_subGD':
+            if method == 'scaled_GD' or method=='scaled_subGD':
                 dampling = 0
             elif method == 'pred_GD':
                 dampling = np.linalg.norm(c(X) - M_star, ord='fro')
             elif method == 'scaled_GD_lambda':
-                dampling = 10**-16
-            
+                dampling = 10**-8
+        
             precondionner_inv =   np.linalg.inv( X.T@X + dampling* np.eye(r) )  #(np.inv()) for scaled
             
             
             G = g.reshape(*X.shape)
             preconditionned_G = G @ precondionner_inv
             aux = G @ sqrtm(precondionner_inv)
-            gamma = (h(c(X)) - 0) / (np.sum(np.multiply(aux,aux))) if method == 'scaled_subGD' else  0.000001
+            gamma = (h(c(X)) - 0) / (np.sum(np.multiply(aux,aux))) if method == 'scaled_subGD' else  constant_stepsize
             #constant 
             #gamma = 0.000001
             
                
-        elif method=='gnp':
+        elif method=='gnp' or method=='gn':
             
             try:
                 dampling = np.linalg.norm(c(X) - M_star, ord='fro')
@@ -410,10 +409,10 @@ def matrix_recovery(X0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond
                 preconditionned_g = g #No precondionning 
                 
             preconditionned_G = preconditionned_g.reshape(n,r)
-            gamma = 2*(h(c(X)) - 0) / np.dot(v,v)
-        elif method == 'subGD':
+            gamma = (h(c(X)) - 0) / np.dot(v,v) if  method == 'gnp' else constant_stepsize
+        elif method == 'subGD' or method == 'gd':
             preconditionned_G  = g.reshape(n,r)
-            gamma = (h(c(X)) - 0) / np.sum(np.multiply(g,g))
+            gamma = (h(c(X)) - 0) / np.sum(np.multiply(g,g)) if method == 'subGD' else constant_stepsize
             
 
         else:
@@ -422,7 +421,7 @@ def matrix_recovery(X0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond
 
         X = X - gamma*preconditionned_G
     
-    file_name = f'experiments/exp_{method}_l_{loss_ord}_r*={r_true}_r={X.shape[1]}_condn={cond_number}_trial_{trial}.csv'
+    file_name = f'experiments/expbm_{method}_l_{loss_ord}_r*={r_true}_r={X.shape[1]}_condn={cond_number}_trial_{trial}.csv'
     full_path = os.path.join(base_dir, file_name)
     np.savetxt(full_path, losses, delimiter=',') 
     full_path = os.path.join(base_dir, file_name)
@@ -432,7 +431,7 @@ def matrix_recovery(X0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond
 
 
 
-def matrix_recovery_assymetric(X0, Y0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond_number, method, base_dir, trial):
+def matrix_recovery_assymetric(X0, Y0,Xstar,Ystar, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond_number, method, base_dir, trial):
     
     def c(X,Y):
         return X @ Y.T 
@@ -520,8 +519,8 @@ def matrix_recovery_assymetric(X0, Y0, M_star, n_iter, A, A_adj, y_true, loss_or
         
        
         
-      
-        if method=='gnp':
+        constant_stepsize = 0.000005
+        if method=='gnp' or method == 'gn':
             dampling = np.linalg.norm(c(X,Y) - M_star, ord='fro')
             
             try:
@@ -534,45 +533,52 @@ def matrix_recovery_assymetric(X0, Y0, M_star, n_iter, A, A_adj, y_true, loss_or
                 
             preconditionned_G_x = preconditionned_g_x.reshape(*X.shape)
             preconditionned_G_y = preconditionned_g_y.reshape(*Y.shape)
-            gamma = 1.5*(h(c(X,Y)) - 0) / ( np.dot(v,v) ) 
+            gamma = (h(c(X,Y)) - 0) / ( np.dot(v,v) )  if method == 'gnp' else constant_stepsize
           
         
-        elif method == 'scaled_GD' or method == 'scaled_subGD' or method == 'pred_GD'  or method == 'scaled_GD_lambda': #PAPER: Low-Rank Matrix Recovery with Scaled Subgradient Methods
+        elif method in ['scaled_GD' ,'scaled_subGD', 'pred_GD', 'scaled_GD_lambda', 'scaled_subGD_lambda_rebalance']: #PAPER: Low-Rank Matrix Recovery with Scaled Subgradient Methods
             
            
-           if method == 'scaled_GD' or 'scaled_subGD':
+           if method == 'scaled_GD' or method=='scaled_subGD':
                dampling = 0
            elif method == 'pred_GD':
                dampling = np.linalg.norm(c(X,Y) - M_star, ord='fro')
-           elif method == 'scaled_GD_lambda':
-               dampling = 10**-16
-           
+           elif method == 'scaled_GD_lambda' or method == 'scaled_subGD_lambda_rebalance':
+               dampling = 10**-8
+        
+        
            preconditionner_x = np.linalg.inv(Y.T@Y + dampling* np.eye(X.shape[1]))
            preconditionner_y = np.linalg.inv(X.T@X + dampling* np.eye(Y.shape[1]))
-           dampling
-           G_x = g_x.reshape(*X.shape)
-           G_y = g_y.reshape(*Y.shape)
-           preconditionned_G_x = G_x @ preconditionner_x
+           G_x = g_x.reshape(*X.shape) if method != 'scaled_subGD_lambda_rebalance' else (g_x.reshape(*X.shape) + dampling*X) 
+           G_y = g_y.reshape(*Y.shape) if method != 'scaled_subGD_lambda_rebalance' else (g_y.reshape(*Y.shape) + dampling*Y)
+           preconditionned_G_x = G_x @ preconditionner_x 
            preconditionned_G_y = G_y @ preconditionner_y
            preconditionned_g_x = preconditionned_G_x.reshape(-1)
            preconditionned_g_y = preconditionned_G_y.reshape(-1)
            
            aux_x = G_x @ sqrtm(preconditionner_x) 
            aux_y = G_y @ sqrtm(preconditionner_y) 
-           gamma = (h(c(X,Y)) - 0) / (np.sum(np.multiply(aux_x,aux_x)) + np.sum(np.multiply(aux_y, aux_y))) if method == 'scaled_subGD' else  0.000001
+           reg_diff = dampling*0.5*( np.linalg.norm(X)**2 + np.linalg.norm(Y)**2 - np.linalg.norm(Xstar)**2 -  np.linalg.norm(Ystar)**2 if method == 'scaled_subGD_lambda_rebalance' else 0)
+           
+           gamma = ((h(c(X,Y)) - 0)   / (np.sum(np.multiply(aux_x,aux_x)) + np.sum(np.multiply(aux_y, aux_y)))) if method in ['scaled_subGD',
+                                                                                                                          'scaled_subGD_lambda_rebalance'] else constant_stepsize
         
-        elif method == 'subGD': 
+        elif method == 'subGD' or method =='gd': 
             preconditionned_G_x = g_x.reshape(*X.shape)
             preconditionned_G_y = g_y.reshape(*Y.shape)
-            gamma = (h(c(X,Y)) - 0) /  np.sum(np.multiply( g_x, g_x)) + np.sum(np.multiply( g_y, g_y)) 
+            gamma = (h(c(X,Y)) - 0) / ( np.sum(np.multiply( g_x, g_x)) + np.sum(np.multiply( g_y, g_y)))  if method == 'subGD' else constant_stepsize
+        
         else:
             raise NotImplementedError
-        
         
         X = X - gamma*preconditionned_G_x
         Y = Y - gamma*preconditionned_G_y
         
-    file_name = f'experiments/exp_{method}_l_{loss_ord}_r*={r_true}_r={X.shape[1]}_condn={cond_number}_trial_{trial}.csv'
+        if method == 'scaled_subGD_lambda_rebalance':
+            X,Y = rebalance(X,Y)
+        
+        
+    file_name = f'experiments/expasymmetric_{method}_l_{loss_ord}_r*={r_true}_r={X.shape[1]}_condn={cond_number}_trial_{trial}.csv'
     full_path = os.path.join(base_dir, file_name)
     np.savetxt(full_path, losses, delimiter=',') 
     full_path = os.path.join(base_dir, file_name)
@@ -580,7 +586,23 @@ def matrix_recovery_assymetric(X0, Y0, M_star, n_iter, A, A_adj, y_true, loss_or
     
     return losses
 
+def rebalance(X, Y):
+    # QR decompositions of X and Y
+    QL, WL = np.linalg.qr(X)
+    QR, WR = np.linalg.qr(Y)
+    
+    # SVD of the product WL @ WR.T
+    U, s, Vt = np.linalg.svd(WL @ WR.T)
 
+    # Create a rectangular diagonal matrix for singular values
+    Sigma = np.zeros((U.shape[1], Vt.shape[0]))
+    np.fill_diagonal(Sigma, s)
+
+    # Compute the rebalanced matrices
+    L_rebalanced = QL @ U @ np.sqrt(Sigma)
+    R_rebalanced = QR @ Vt.T @ np.sqrt(Sigma)
+    
+    return L_rebalanced, R_rebalanced
 
 import torch
 def retrieve_tensors(concatenated_tensor, original_shapes):

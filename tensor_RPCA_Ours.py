@@ -118,7 +118,6 @@ def tensor_recovery(method, G_true, factors_true, G0_init, factors0_init, X,Y, m
         
         
         stepsize = (h_c_x - best_error) / (torch.dot(subgradient, subgradient)) if method == 'gnp' else (h_c_x - best_error) / (torch.dot(jac_c.T @ subgradient, jac_c.T @ subgradient))
-        
         direction = 0
         if method == 'gnp':
             try:
@@ -127,7 +126,8 @@ def tensor_recovery(method, G_true, factors_true, G0_init, factors0_init, X,Y, m
                 direction = jac_c.T @ subgradient
         elif method == 'subGD':
             direction = jac_c.T @ subgradient
-            
+        else:
+            raise NotImplementedError()
         
         
         concatenated = concatenated - stepsize * direction

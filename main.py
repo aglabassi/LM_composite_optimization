@@ -11,17 +11,22 @@ if __name__ == "__main__":
     #Matrix
     
     loss_ord = 1
+    symmetric= False
     r_true = 2
     n_cpu = 1
     n_trial_div_n_cpu = 1
-    os.system('rm experiments/*.csv')
-    T =1000
+    #os.system('rm experiments/*.csv')
+    T = 1000
     n = 20
     np.random.seed(42)
-    methods = [ 'gnp', 'subGD', 'scaled_subGD' ]
-    init_radius_ratio = 0.1
-    keys = [ (5,100)]
-    symmetric= False
+    
+    if loss_ord == 2:
+        methods = [ 'gd', 'gn', 'scaled_GD_lambda', 'pred_GD'] #smoooth BM
+    else:
+        methods = [ 'subGD', 'gnp','scaled_subGD']  +( [ 'scaled_subGD_lambda_rebalance'] if not symmetric else [])
+
+    init_radius_ratio = 0.001
+    keys = [(2,1), (4,10)]
     
     d = 10 * n * r_true
     base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -38,5 +43,5 @@ if __name__ == "__main__":
         trial_execution_matrix(range(0, n_trial_div_n_cpu), n, r_true, d, keys, init_radius_ratio, T, loss_ord, base_dir, methods, symmetric)
     
 
-    losses = collect_compute_mean(keys, loss_ord, r_true, False, methods, 'matrix')
-    plot_losses_with_styles(losses, r_true, loss_ord, base_dir, "Burer-Monteiro" if symmetric else "Left-Right")
+    losses = collect_compute_mean(keys, loss_ord, r_true, False, methods, 'bm' if symmetric else 'asymmetric' )
+    plot_losses_with_styles(losses, r_true, loss_ord, base_dir, "Burer-Monteiro" if symmetric else 'Asymmetric')

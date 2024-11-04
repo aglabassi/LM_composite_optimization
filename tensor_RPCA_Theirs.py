@@ -83,7 +83,7 @@ def rpca(G_true, factors_true, G0_init, factors0_init, X, Y, measurement_operato
         
     file_name = f'experiments/exptensor_scaled_GD_l_{loss_ord}_r*={r_true}_r={r}_condn={cond_number}_trial_{0}.csv'
     full_path = os.path.join(base_dir, file_name)
-    np.savetxt(full_path, errs, delimiter=',') 
+    np.savetxt(full_path, np.array(errs)/errs[0], delimiter=',') 
     full_path = os.path.join(base_dir, file_name)
         
     return 'dont care'

@@ -19,10 +19,22 @@ def generate_tensor(n, r_true, r, kappa):
     U1 = torch.linalg.svd(torch.rand(n, n, device=device).double())[0][:, :r_true]
     U2 = torch.linalg.svd(torch.rand(n, n, device=device).double())[0][:, :r_true]
     U3 = torch.linalg.svd(torch.rand(n, n, device=device).double())[0][:, :r_true]
+        
+        # Adjust singular values to set the condition number
+    def set_condition_number(U, kappa):
+        # Create singular values spanning from 1 to 1/kappa
+        singular_values = torch.linspace(1, 1/kappa, U.shape[1], device=device, dtype=torch.double)
+        U_adjusted = U @ torch.diag(singular_values)
+        return U_adjusted
     
+    # Apply condition number adjustment
+    U1 = set_condition_number(U1, kappa)
+    U2 = set_condition_number(U2, kappa)
+    U3 = set_condition_number(U3, kappa)
+        
     core_G = torch.zeros((r_true, r_true, r_true), device=device).double()
     indices = torch.arange(r_true, device=device).long()
-    core_G[indices, indices, indices] = kappa ** (-indices.double() / (r_true))
+    core_G[indices, indices, indices] = 1
     
     mu = (n / r_true) * max(torch.max(torch.norm(U1, dim=0, p=float('inf'))),
                             torch.max(torch.norm(U2, dim=0, p=float('inf'))),
@@ -35,8 +47,8 @@ def generate_tensor(n, r_true, r, kappa):
     U2_extended = torch.cat((U2, torch.zeros(n, r - r_true).double()), dim=1)
     U3_extended = torch.cat((U3, torch.zeros(n, r - r_true).double()), dim=1)
     
-    indices_r = torch.arange(r, device=device).long() #FIX CP Decomp
-    core_G_extended[indices_r, indices_r, indices_r] = 1#FIX CP Decomp
+    indices_r = torch.arange(r, device=device).long() 
+    core_G_extended[indices_r, indices_r, indices_r] = 1
     
     return mu, core_G_extended, [U1_extended, U2_extended, U3_extended]
 
@@ -141,23 +153,22 @@ def run_methods(methods, keys, n, r_true, target_d, identity, device,
                 tensor_recovery(method, G, factors, G0, factors0, T_true, T_true_corr, measurement_operator, 
                                 r_true, kappa, [r, r, r], treshold_0, n_iter, spectral_init, base_dir, loss_ord, 
                                 perturb=radius_init, fix_G=fix_G)
-                
-os.system('rm experiments/*.csv')
+
 # Updated variables with specified values
-methods = ['gnp', 'subGD']
-keys = [(2,1),(2,1000),(5, 1000)]
-n = 20
+methods = ['gnp','subGD']
+keys = [ (2,1), (2,10)]
+n = 10
 r_true = 2
 target_d = n * r_true * 10
-identity = True
+identity = False
 device = 'cpu'
 stepsize = 0.4
 decay_constant = 1 - 0.45 * stepsize
 n_iter = 1000
 spectral_init = False
 base_dir = os.path.dirname(os.path.abspath(__file__))
-loss_ord = 2
-radius_init = 10
+loss_ord = 1
+radius_init = 0.00001
 fix_G = True
 
 # Call the function
