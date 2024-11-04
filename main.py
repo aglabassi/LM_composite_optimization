@@ -10,13 +10,13 @@ if __name__ == "__main__":
     
     #Matrix
     
-    loss_ord = 1
+    loss_ord = 2
     symmetric= False
     r_true = 2
     n_cpu = 1
     n_trial_div_n_cpu = 1
-    #os.system('rm experiments/*.csv')
-    T = 1000
+    os.system('rm experiments/expbm*.csv') if symmetric else os.system('rm experiments/expasymmetric*.csv') 
+    T = 1200
     n = 20
     np.random.seed(42)
     

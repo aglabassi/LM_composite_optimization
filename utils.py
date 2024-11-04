@@ -147,7 +147,10 @@ def plot_losses_with_styles(losses, r_true, loss_ord, base_dir, problem, num_dot
             )
         
           
-    object_ = 'Matrix' if problem == 'Burer-Monteiro' or problem == 'Left-Right' else 'Tensor'
+    object_ = 'Matrix' if problem == 'Burer-Monteiro' or problem == 'Asymmetric' else ''
+    object_ = 'Square vector' if problem == 'Haddamard' else object_
+    object_ = 'Tensors' if problem == 'Tensor' else object_
+    
     plt.title(rf'{ object_ } sensing with $\ell_{loss_ord}-norm$, {problem}')
     
     plt.xlabel('Iteration')
