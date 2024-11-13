@@ -15,6 +15,7 @@ import glob
 
 def collect_compute_mean(keys, loss_ord, r_true, res, methods, problem):
     losses = dict(( method, dict()) for method in methods )
+    stds = dict( (method, dict()) for method in methods)
 
     for rank, cond_number in keys:
         for method in methods:
@@ -31,16 +32,19 @@ def collect_compute_mean(keys, loss_ord, r_true, res, methods, problem):
             
             # Compute the mean across all trials (rows) for each experiment
             mean_values = np.mean(data_array, axis=0)
+            std = np.std(data_array, axis=0)
+            
             losses[method][(rank, cond_number)]  = mean_values
+            stds[method][(rank, cond_number )]  = std
    
-    return losses
+    return losses, stds
 
 
 
-def trial_execution_matrix(trials, n, r_true, d, keys, init_radius_ratio, T, loss_ord, base_dir, methods, symmetric=True):
+def trial_execution_matrix(trials, n, r_true, d, keys, init_radius_ratio, T, loss_ord, base_dir, methods, symmetric=True, identity=False):
     
     for trial in trials:
-        A, A_adj = create_rip_transform(n, d)
+        A, A_adj = create_rip_transform(n, d, identity)
     
         for r, cond_number in keys:
             X_true = generate_matrix_with_condition(n, r_true, cond_number)
@@ -81,94 +85,248 @@ def trial_execution_matrix(trials, n, r_true, d, keys, init_radius_ratio, T, los
 
 
 
+import matplotlib.pyplot as plt
+import matplotlib as mpl
+import os
+import numpy as np
+from matplotlib.lines import Line2D
 
-def plot_losses_with_styles(losses, r_true, loss_ord, base_dir, problem, num_dots=20):
-    # Define color palettes for 'scaled' (blue family) and 'gn' (red family)
+def plot_losses_with_styles(losses, stds, r_true, loss_ord, base_dir, problem, kappa, num_dots=0.1):
+    """
+    Plots the losses with distinct styles for methods, parameterizations, and ill-conditioning levels.
+
+    Parameters:
+    - losses (dict): Nested dictionary containing loss values.
+    - stds (dict): Nested dictionary containing standard deviations of losses.
+    - r_true (float): The true parameterization value for comparison.
+    - loss_ord (int): An identifier for the loss order.
+    - base_dir (str): Base directory to save the plot.
+    - problem (str): Type of problem (e.g., 'Burer-Monteiro', 'Asymmetric', etc.).
+    - kappa (float): Ill-conditioning parameter.
+    - num_dots (float): Fraction to determine the number of points to plot.
+    """
     
-    methods = losses.keys()
+    # Enable LaTeX rendering if desired
+    mpl.rcParams['text.usetex'] = False  # Set to True if LaTeX is installed and desired
+
+    # Adjust matplotlib parameters for publication quality
+    mpl.rcParams['figure.figsize'] = (8, 6)  # Increased size for better visibility
+    mpl.rcParams['figure.dpi'] = 300
+    mpl.rcParams['font.family'] = 'serif'
+    mpl.rcParams['font.serif'] = ['Times New Roman']
+    mpl.rcParams['font.size'] = 12
+    mpl.rcParams['axes.labelsize'] = 14
+    mpl.rcParams['axes.titlesize'] = 16
+    mpl.rcParams['xtick.labelsize'] = 12
+    mpl.rcParams['ytick.labelsize'] = 12
+    mpl.rcParams['legend.fontsize'] = 12
+    mpl.rcParams['lines.linewidth'] = 2
+    mpl.rcParams['lines.markersize'] = 6
+
+    # Define a color palette commonly used in optimization papers (Tableau 10)
+    tableau_colors = [
+        '#4d4d4d', #BASELINE
+        '#0072b2',  #OUR 
+        '#e69f00',   #COMPETITOR 1
+        '#009e73',   #COMPTEITOR 2
+        '#d55e00'] #FAILING METHOD
+    methods = list(losses.keys())
     for m in methods:
         for m2 in methods:
-            assert losses[m].keys() == losses[m2].keys()
-    
-    colors_list = [
-        ['#0d47a1', '#1976d2', '#2196f3', '#64b5f6', '#bbdefb'],  # Blue palette
-        ['#b71c1c', '#e53935', '#ef5350', '#e57373', '#ffcdd2'],  # Red palette
-        ['#4a148c', '#8e24aa', '#ab47bc', '#ce93d8', '#e1bee7'],  # Purple palette
-        ['#1b5e20', '#388e3c', '#4caf50', '#81c784', '#c8e6c9'],  # Green palette
-        ['#f57f17', '#fbc02d', '#ffeb3b', '#fff176', '#fff9c4']   # Yellow palette
-    ]
-    
-    assert len(colors_list) >= len(methods) #enough colors for each method
+            assert losses[m].keys() == losses[m2].keys(), "All methods must have the same keys."
 
+    # Ensure enough colors for each method
+    assert len(tableau_colors) >= len(methods), "Not enough colors for the number of methods."
 
-    markers = ['o', 's', '^', 'D', '*', 'p', 'h', 'x']  # Different markers for different condition numbers
-    linestyles = ['-', '--', '-.', ':']  # Different linestyles for different ranks
-    
-    
+    markers = ['o', '^', 'D', 's', 'P', '*', 'X', 'v', '<', '>']  # Extended markers list
+    linestyles = ['-', ':']  # Different linestyles
 
+    fig, ax = plt.subplots()
 
+    keys = list(losses[methods[0]].keys())
 
-    # Prepare the plot
-    plt.figure(figsize=(10, 6))
-    
-    keys = losses[list(methods)[0]].keys()
-    
     rs = []
     cs = []
     for k in keys:
-        r,c = k
+        r, c = k
         if r not in rs:
             rs.append(r)
         if c not in cs:
             cs.append(c)
-    
+
+    # Machine epsilon for float64
+    epsilon_machine = np.finfo(float).eps
+
+    # Initialize dictionaries to store unique styles for legends
+    marker_styles = {}
+    linestyle_styles = {}
+    method_colors = {}
+
     for idx_m, method in enumerate(methods):
+        color = tableau_colors[idx_m % len(tableau_colors)]
+        method_colors[method] = color  # Store color for the method
+
         for idx, k in enumerate(keys):
             r_index = rs.index(k[0])
             c_index = cs.index(k[1])
-            errs = losses[method][k]
-            
-            color = colors_list[idx_m][idx]
+            errs = np.array(losses[method][k])
+            std = np.array(stds[method][k])
+          
 
+            # Determine the index where errors have converged to machine epsilon
+            convergence_threshold = 1e-13   # Slightly above machine epsilon to account for numerical errors
+            converged_indices = np.where(errs <= convergence_threshold)[0]
+
+            if converged_indices.size > 0:
+                last_index = converged_indices[0] + 1  # Include the converged point
+            else:
+                last_index = len(errs)
+
+            # Slice the errors up to the convergence point
+            errs = errs[:last_index]
+            std = std[:last_index]
+
+            #
+            num_dots_adapted = int(num_dots*last_index)
+     
             
-            marker = markers[c_index]
-            linestyle = linestyles[r_index]
-            indices = np.arange(0, len(errs), num_dots)
-            plt.plot(
+            start = int( idx_m * ( num_dots_adapted )/(len(methods)))
+            
+            if k[1] > 1:
+                start += num_dots_adapted/4
+                if k[0] > r_true:
+                    start += num_dots_adapted/4
+            start = int(start)
+           
+            indices = np.arange(start, last_index, num_dots_adapted)
+ 
+            indices = np.hstack((np.zeros(1, dtype=int), indices))
+            if indices.size == 0:
+                indices = np.array([0])  # Ensure at least one point is plotted
+            elif indices[-1] != last_index - 1:
+                # Include the last index to reach the convergence threshold
+                indices = np.append(indices, last_index - 1)
+
+            # Determine parameterization (overparam or exact param)
+            over_exact_label = "Overparameterized" if k[0] > r_true else "Exact parameterization"
+            if over_exact_label not in linestyle_styles:
+                linestyle = linestyles[1 if k[0] > r_true else 0 ]
+                linestyle_styles[over_exact_label] = linestyle  # Store linestyle for the parameterization
+            else:
+                linestyle = linestyle_styles[over_exact_label]
+            
+            # Determine marker based on ill-conditioning (kappa value)
+            kappa_label = "Ill-conditioned" if k[1] > 1 else "Well-conditioned"
+            if kappa_label not in marker_styles:
+                marker = markers[ 1 if k[1] > 1 else 0]
+                marker_styles[kappa_label] = marker  # Store marker for the kappa value
+            else:
+                marker = marker_styles[kappa_label]
+
+            # Plotting the mean errors
+            ax.plot(
                 indices,
                 errs[indices],
                 linestyle=linestyle,
                 color=color,
                 marker=marker,
-                label=(
-                    f'{method} {", overparam." if k[0] > r_true else ""} '
-                    f'{", ill-conditioned" if k[1] > 1 else ""}'
-                )
+                label=None  # Labels are handled separately
             )
-        
-          
-    object_ = 'Matrix' if problem == 'Burer-Monteiro' or problem == 'Asymmetric' else ''
-    object_ = 'Square vector' if problem == 'Haddamard' else object_
-    object_ = 'Tensors' if problem == 'Tensor' else object_
-    
-    plt.title(rf'{ object_ } sensing with $\ell_{loss_ord}-norm$, {problem}')
-    
-    plt.xlabel('Iteration')
-    plt.ylabel(r'Distance to $M^\ast$')
-    plt.yscale('log')
 
-    
-    # Create a custom legend
-    plt.legend()
-    fig_path = os.path.join(base_dir, f'experiments/exp_l{loss_ord}.png')
-    plt.savefig(fig_path, dpi=300)
+            # Fill between for error bands
+            ax.fill_between(
+                indices,
+                errs[indices] - std[indices],
+                errs[indices] + std[indices],
+                alpha=0.2,
+                color=color
+            )
+
+    # Set the plot title based on the problem type
+    object_ = {
+        'Burer-Monteiro': 'Matrix',
+        'Asymmetric': 'Matrix',
+        'Hadamard': 'Square Vector',
+        'Tensor': 'Tensors'
+    }.get(problem, '')
+
+
+    # Setting labels with LaTeX formatting
+    ax.set_xlabel('Iteration', fontsize=14)
+    ax.set_ylabel(r'Relative Distance to $z^\ast$', fontsize=14)
+    ax.set_yscale('log')
+
+    # Adding grid lines
+    ax.grid(True, which='both', linestyle='--', linewidth=0.5, alpha=0.7)
+
+    # Adjusting tick parameters
+    ax.tick_params(axis='both', which='major', direction='in', length=6, width=1)
+    ax.tick_params(axis='both', which='minor', direction='in', length=3, width=0.5)
+
+    # Create custom legend handles
+    # Methods legend (colors only)
+    method_handles = [
+        Line2D([0], [0], color=method_colors[method], lw=2) for method in methods
+    ]
+    method_labels = methods
+
+    # Markers legend (parameterization), markers in black
+    marker_handles = [
+        Line2D([0], [0], marker=marker_styles[label], color='black', linestyle='None', markersize=8)
+        for label in marker_styles
+    ]
+    marker_labels = list(marker_styles.keys())
+
+    # Linestyles legend (ill-conditioning), linestyles in black
+    linestyle_handles = [
+        Line2D([0], [0], linestyle=linestyle_styles[label], color='black', lw=2)
+        for label in linestyle_styles
+    ]
+    linestyle_labels = list(linestyle_styles.keys())
+
+    # Place legends
+    # Methods legend at upper right
+    legend1 = ax.legend(
+        method_handles,
+        method_labels,
+        title='Methods',
+        loc='upper right',
+        bbox_to_anchor=(0.693, 0.976),
+        frameon=True,
+        facecolor='white',
+        edgecolor='black'
+    )
+
+    # Combined legend for markers and linestyles at lower left
+    combined_handles = marker_handles + linestyle_handles
+    combined_labels = marker_labels + linestyle_labels
+    legend2 = ax.legend(
+        combined_handles,
+        combined_labels,
+        title='Setting',
+        loc='upper right',
+       bbox_to_anchor=(1, 1),  # Adjust the y-coordinate as needed
+        frameon=True,
+        facecolor='white',
+        edgecolor='black'
+    )
+
+
+
+    # Add the first legend back to the axes
+    ax.add_artist(legend1)
+    ax.add_artist(legend2)
+
+    # Tight layout for better spacing
+    plt.tight_layout()
+
+    # Saving the figure in a vector format (PDF)
+    fig_path = os.path.join(base_dir, f'experiments/exp_l{loss_ord}_{problem}_{kappa}.pdf')
+    plt.savefig(fig_path, format='pdf', bbox_inches='tight')
+
+    # Display the plot
     plt.show()
-
     
-
-
-
-
 def gen_random_point_in_neighborhood(X_true, radius, r, r_true):
     n, dim = X_true.shape
     
@@ -205,46 +363,45 @@ def generate_matrix_with_condition(n, r, condition_number):
 
 
 
-def create_rip_transform(n, d):
+def create_rip_transform(n, d, identity=False):
+    if identity: 
+
+        transformation_matrix = np.eye(n*n)
+        adjoint_transformation_matrix = transformation_matrix.T
+
+        def transform(matrix):
+            # Flatten the matrix directly
+            return np.dot(transformation_matrix, matrix.reshape(-1))
+
+        def adjoint_transform(vector):
+            # Reshape the vector back to the original matrix shape
+            v = np.dot(adjoint_transformation_matrix, vector)
+            return v.reshape(n, n)
+
+
+    else:
+        flattening_factor = n **2
     
-    flattening_factor = n **2
-
-    transformation_matrix_diag = np.random.normal(0, np.sqrt(1/d), (d, flattening_factor))
-    transformation_matrix_offdiag = np.random.normal(0, np.sqrt(1/2*d), (d, flattening_factor))
+        transformation_matrix_diag = np.random.normal(0, np.sqrt(1/d), (d, flattening_factor))
+        transformation_matrix_offdiag = np.random.normal(0, np.sqrt(1/2*d), (d, flattening_factor))
+        
+        mask_diag = np.eye(transformation_matrix_diag.shape[0], transformation_matrix_diag.shape[1])
+        mask_offdiag = 1 - mask_diag
+        transformation_matrix = transformation_matrix_diag*mask_diag + transformation_matrix_offdiag*mask_offdiag
+        adjoint_transformation_matrix = transformation_matrix.T
+        
     
-    mask_diag = np.eye(transformation_matrix_diag.shape[0], transformation_matrix_diag.shape[1])
-    mask_offdiag = 1 - mask_diag
-    transformation_matrix = transformation_matrix_diag*mask_diag + transformation_matrix_offdiag*mask_offdiag
-    adjoint_transformation_matrix = transformation_matrix.T
+        def transform(matrix):
+            matrix_flattened = matrix.reshape(-1)
+            return np.dot(transformation_matrix, matrix_flattened) 
     
-
-    def transform(matrix):
-        matrix_flattened = matrix.reshape(-1)
-        return np.dot(transformation_matrix, matrix_flattened) 
-
-
-    def adjoint_transform(vector):
-        matrix_reconstructed = np.dot(adjoint_transformation_matrix, vector)
-        return matrix_reconstructed.reshape(n, n)
+    
+        def adjoint_transform(vector):
+            matrix_reconstructed = np.dot(adjoint_transformation_matrix, vector)
+            return matrix_reconstructed.reshape(n, n)
 
     return transform, adjoint_transform
 
-
-# def create_rip_transform(n, d):
-#     # Create an identity matrix for the flattening operation
-#     transformation_matrix = np.eye(n*n)
-#     adjoint_transformation_matrix = transformation_matrix.T
-
-#     def transform(matrix):
-#         # Flatten the matrix directly
-#         return np.dot(transformation_matrix, matrix.reshape(-1))
-
-#     def adjoint_transform(vector):
-#         # Reshape the vector back to the original matrix shape
-#         v = np.dot(adjoint_transformation_matrix, vector)
-#         return v.reshape(n, n)
-
-#     return transform, adjoint_transform
 
 
 
@@ -380,25 +537,25 @@ def matrix_recovery(X0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond
         
         
         
-        constant_stepsize =  0.000001
+        constant_stepsize = 0.000001 #if sensing else 0.1 #if sensing else 0.1
             
-        if method == 'scaled_GD' or method == 'scaled_subGD' or method == 'pred_GD'  or method == 'scaled_GD_lambda': #PAPER: Low-Rank Matrix Recovery with Scaled Subgradient Methods
+        if method == 'scaled_gd' or method == 'scaled_subgd' or method == 'pred_gd'  or method == 'scaled_gd($\lambda$)' or method == 'rebalance': #PAPER: Low-Rank Matrix Recovery with Scaled Subgradient Methods
         
            
-            if method == 'scaled_GD' or method=='scaled_subGD':
+            if method == 'scaled_gd' or method=='scaled_subgd':
                 dampling = 0
-            elif method == 'pred_GD':
+            elif method == 'pred_gd':
                 dampling = np.linalg.norm(c(X) - M_star, ord='fro')
-            elif method == 'scaled_GD_lambda':
-                dampling = 10**-8
+            elif method == 'scaled_gd($\lambda$)' or method == 'rebalance':
+                dampling = 10**-9
         
             precondionner_inv =   np.linalg.inv( X.T@X + dampling* np.eye(r) )  #(np.inv()) for scaled
             
             
-            G = g.reshape(*X.shape)
+            G = g.reshape(*X.shape) if method != 'rebalance' else (g.reshape(*X.shape) + dampling*X) 
             preconditionned_G = G @ precondionner_inv
             aux = G @ sqrtm(precondionner_inv)
-            gamma = (h(c(X)) - 0) / (np.sum(np.multiply(aux,aux))) if method == 'scaled_subGD' else  constant_stepsize
+            gamma = (h(c(X)) - 0) / (np.sum(np.multiply(aux,aux)))  if method in ['scaled_subgd', 'rebalance'] else constant_stepsize
             #constant 
             #gamma = 0.000001
             
@@ -412,10 +569,10 @@ def matrix_recovery(X0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond
                 preconditionned_g = g #No precondionning 
                 
             preconditionned_G = preconditionned_g.reshape(n,r)
-            gamma = (h(c(X)) - 0) / np.dot(v,v) if  method == 'gnp' else constant_stepsize
-        elif method == 'subGD' or method == 'gd':
+            gamma = 1.5*(h(c(X)) - 0) / np.dot(v,v) if  method == 'gnp' else 2*constant_stepsize
+        elif method == 'vanilla_subgd' or method == 'vanilla_gd':
             preconditionned_G  = g.reshape(n,r)
-            gamma = (h(c(X)) - 0) / np.sum(np.multiply(g,g)) if method == 'subGD' else constant_stepsize
+            gamma = (h(c(X)) - 0) / np.sum(np.multiply(g,g)) if method == 'vanilla_subgd' else constant_stepsize
             
 
         else:
@@ -423,6 +580,8 @@ def matrix_recovery(X0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond
         
 
         X = X - gamma*preconditionned_G
+        if method == 'rebalance':
+            X,_ = rebalance(X,X)
     
     file_name = f'experiments/expbm_{method}_l_{loss_ord}_r*={r_true}_r={X.shape[1]}_condn={cond_number}_trial_{trial}.csv'
     full_path = os.path.join(base_dir, file_name)
@@ -522,7 +681,7 @@ def matrix_recovery_assymetric(X0, Y0,Xstar,Ystar, M_star, n_iter, A, A_adj, y_t
         
        
         
-        constant_stepsize = 0.000005
+        constant_stepsize = 0.000001 #if sensing else 0.1
         if method=='gnp' or method == 'gn':
             dampling = np.linalg.norm(c(X,Y) - M_star, ord='fro')
             
@@ -536,24 +695,24 @@ def matrix_recovery_assymetric(X0, Y0,Xstar,Ystar, M_star, n_iter, A, A_adj, y_t
                 
             preconditionned_G_x = preconditionned_g_x.reshape(*X.shape)
             preconditionned_G_y = preconditionned_g_y.reshape(*Y.shape)
-            gamma = (h(c(X,Y)) - 0) / ( np.dot(v,v) )  if method == 'gnp' else constant_stepsize
+            gamma = 1.5*(h(c(X,Y)) - 0) / ( np.dot(v,v) )  if method == 'gnp' else constant_stepsize
           
         
-        elif method in ['scaled_GD' ,'scaled_subGD', 'pred_GD', 'scaled_GD_lambda', 'scaled_subGD_lambda_rebalance']: #PAPER: Low-Rank Matrix Recovery with Scaled Subgradient Methods
+        elif method in ['scaled_gd' ,'scaled_subgd', 'pred_gd', 'scaled_gd($\lambda$)', 'rebalance']: #PAPER: Low-Rank Matrix Recovery with Scaled Subgradient Methods
             
            
-           if method == 'scaled_GD' or method=='scaled_subGD':
+           if method == 'scaled_gd' or method=='scaled_subgd':
                dampling = 0
-           elif method == 'pred_GD':
+           elif method == 'pred_gd':
                dampling = np.linalg.norm(c(X,Y) - M_star, ord='fro')
-           elif method == 'scaled_GD_lambda' or method == 'scaled_subGD_lambda_rebalance':
-               dampling = 10**-8
+           elif method == 'scaled_gd($\lambda$)' or method == 'rebalance':
+               dampling = 10**-9
         
         
            preconditionner_x = np.linalg.inv(Y.T@Y + dampling* np.eye(X.shape[1]))
            preconditionner_y = np.linalg.inv(X.T@X + dampling* np.eye(Y.shape[1]))
-           G_x = g_x.reshape(*X.shape) if method != 'scaled_subGD_lambda_rebalance' else (g_x.reshape(*X.shape) + dampling*X) 
-           G_y = g_y.reshape(*Y.shape) if method != 'scaled_subGD_lambda_rebalance' else (g_y.reshape(*Y.shape) + dampling*Y)
+           G_x = g_x.reshape(*X.shape) if method != 'rebalance' else (g_x.reshape(*X.shape) + dampling*X) 
+           G_y = g_y.reshape(*Y.shape) if method != 'rebalance' else (g_y.reshape(*Y.shape) + dampling*Y)
            preconditionned_G_x = G_x @ preconditionner_x 
            preconditionned_G_y = G_y @ preconditionner_y
            preconditionned_g_x = preconditionned_G_x.reshape(-1)
@@ -561,23 +720,24 @@ def matrix_recovery_assymetric(X0, Y0,Xstar,Ystar, M_star, n_iter, A, A_adj, y_t
            
            aux_x = G_x @ sqrtm(preconditionner_x) 
            aux_y = G_y @ sqrtm(preconditionner_y) 
-           reg_diff = dampling*0.5*( np.linalg.norm(X)**2 + np.linalg.norm(Y)**2 - np.linalg.norm(Xstar)**2 -  np.linalg.norm(Ystar)**2 if method == 'scaled_subGD_lambda_rebalance' else 0)
+           reg_diff = dampling*0.5*( np.linalg.norm(X)**2 + np.linalg.norm(Y)**2 - np.linalg.norm(Xstar)**2 -  np.linalg.norm(Ystar)**2 if method == 'rebalance' else 0)
            
-           gamma = ((h(c(X,Y)) - 0)   / (np.sum(np.multiply(aux_x,aux_x)) + np.sum(np.multiply(aux_y, aux_y)))) if method in ['scaled_subGD',
-                                                                                                                          'scaled_subGD_lambda_rebalance'] else constant_stepsize
+           gamma = ((h(c(X,Y)) - 0)   / (np.sum(np.multiply(aux_x,aux_x)) + np.sum(np.multiply(aux_y, aux_y)))) if method in ['scaled_subgd',
+                                                                                                                          'rebalance'] else constant_stepsize
         
-        elif method == 'subGD' or method =='gd': 
+        elif method == 'vanilla_subgd' or method =='vanilla_gd': 
             preconditionned_G_x = g_x.reshape(*X.shape)
             preconditionned_G_y = g_y.reshape(*Y.shape)
-            gamma = (h(c(X,Y)) - 0) / ( np.sum(np.multiply( g_x, g_x)) + np.sum(np.multiply( g_y, g_y)))  if method == 'subGD' else constant_stepsize
+            gamma = (h(c(X,Y)) - 0) / ( np.sum(np.multiply( g_x, g_x)) + np.sum(np.multiply( g_y, g_y)))  if method == 'vanilla_subgd' else constant_stepsize
         
         else:
+
             raise NotImplementedError
         
         X = X - gamma*preconditionned_G_x
         Y = Y - gamma*preconditionned_G_y
         
-        if method == 'scaled_subGD_lambda_rebalance':
+        if method == 'rebalance':
             X,Y = rebalance(X,Y)
         
         
