@@ -17,22 +17,18 @@ if __name__ == "__main__":
     r_true = 2
     n_cpu = 1
     n_trial_div_n_cpu = 1
-    os.system('rm experiments/expbm*.csv') if symmetric else os.system('rm experiments/expasymmetric*.csv') 
+    #os.system('rm experiments/expbm*.csv') if symmetric else os.system('rm experiments/expasymmetric*.csv') 
     T = 500
     n = 100
     np.random.seed(42)
-    r = 3
+    r = 2
     if loss_ord == 2:
-        methods = [ 'Gradient descent', 'Precond. GD', 'Gauss-Newton, $\eta_k = \eta$', 'Levenberg–Marquard (ours), $\eta_k = \eta$'] #smoooth BM
+        methods = [ 'Gradient descent', 'Precond. GD', 'Gauss-Newton', 'Levenberg–Marquard (ours)'] #smoooth BM
     else:
-        #Exact param 
-        if r == r_true:
-            methods =  ['Subgradient descent', 'Scaled subgradient', 'Gauss-Newton', 'Levenberg–Marquard (ours)']
-        else:
-            methods =  ['Subgradient descent', 'Gauss-Newton', 'Levenberg–Marquard (ours)']
+       methods = [  'Subgradient descent' , 'Scaled subgradient','Gauss-Newton', 'Levenberg–Marquard (ours)']
 
     init_radius_ratio = 0.01
-    keys = [(r,1),(r,100)]
+    keys = [(r,1), (r,10)]
     
     d = 20*n * r_true
     base_dir = os.path.dirname(os.path.abspath(__file__))

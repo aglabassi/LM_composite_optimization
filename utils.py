@@ -123,11 +123,12 @@ def plot_losses_with_styles(losses, stds, r_true, loss_ord, base_dir, problem, k
     mpl.rcParams['font.size'] = 20
     mpl.rcParams['axes.labelsize'] = 20
     mpl.rcParams['axes.titlesize'] = 20
-    mpl.rcParams['xtick.labelsize'] = 20
-    mpl.rcParams['ytick.labelsize'] = 20
+    mpl.rcParams['xtick.labelsize'] = 25
+    mpl.rcParams['ytick.labelsize'] = 25
     mpl.rcParams['legend.fontsize'] = 20
     mpl.rcParams['lines.linewidth'] = 5
     mpl.rcParams['lines.markersize'] = 10
+
 
     # Define a color palette commonly used in optimization papers (Tableau 10)
     tableau_colors_temp = [
@@ -151,6 +152,7 @@ def plot_losses_with_styles(losses, stds, r_true, loss_ord, base_dir, problem, k
     linestyles = ['-', ':']  # Different linestyles
 
     fig, ax = plt.subplots()
+    ax.tick_params(axis='both', which='major', labelsize=25)
 
     keys = list(losses[methods[0]].keys())
 
@@ -189,6 +191,7 @@ def plot_losses_with_styles(losses, stds, r_true, loss_ord, base_dir, problem, k
             if converged_indices.size > 0:
                 last_index = converged_indices[0] + 1  # Include the converged point
             else:
+                print(errs)
                 last_index = len(errs)
 
             # Slice the errors up to the convergence point
@@ -260,8 +263,8 @@ def plot_losses_with_styles(losses, stds, r_true, loss_ord, base_dir, problem, k
     ax.grid(True, which='both', linestyle='--', linewidth=0.5, alpha=0.7)
 
     # Adjusting tick parameters
-    ax.tick_params(axis='both', which='major', direction='in', length=6, width=1, labelsize=18)
-    ax.tick_params(axis='both', which='minor', direction='in', length=3, width=0.5, labelsize=18)
+    ax.tick_params(axis='both', which='major', direction='in', length=6, width=1, labelsize=26)
+    ax.tick_params(axis='both', which='minor', direction='in', length=3, width=0.5, labelsize=26)
 
     # Create custom legend handles
     # Methods legend (colors only)
@@ -313,7 +316,7 @@ def plot_losses_with_styles(losses, stds, r_true, loss_ord, base_dir, problem, k
             combined_labels.append('')  # Empty label for dummy handle
 
     # Place legends
-    height = 0.61 if problem=='Burer-Monteiro' else 0.7
+    height = 0.61 if problem=='Burer-Monteiro' else 0.77
     print(problem)
     # Methods legend at upper right
     legend1 = ax.legend(
@@ -321,11 +324,11 @@ def plot_losses_with_styles(losses, stds, r_true, loss_ord, base_dir, problem, k
         method_labels,
         title='Methods',
         loc='upper right',
-        bbox_to_anchor=(0.715, height),
+        bbox_to_anchor=(0.67, height),
         frameon=True,
         facecolor='white',
         edgecolor='black',
-        fontsize=15,          # Set the font size of the legend labels to 18
+        fontsize=18,          # Set the font size of the legend labels to 18
         title_fontsize=20     # Set the font size of the legend title to 20
     )
 
@@ -340,7 +343,7 @@ def plot_losses_with_styles(losses, stds, r_true, loss_ord, base_dir, problem, k
         frameon=True,
         facecolor='white',
         edgecolor='black',
-        fontsize=15,          # Set the font size of the legend labels to 18
+        fontsize=18,          # Set the font size of the legend labels to 18
         title_fontsize=20     # Set the font size of the legend title to 20
     )
 
@@ -509,7 +512,11 @@ def matrix_recovery(X0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond
 
         
         if np.isnan(h(c(X)) ) or h(c(X)) == np.inf or h(c(X)) > 10**5:
-            losses.append(1) #indicate divergence
+            losses =  losses + [ 1 ] * (n_iter - len(losses)) #indicate divergence
+            break
+        elif h(c(X)) <= 10**-9/2:
+            losses =  losses + [ 10**-15 ] * (n_iter - len(losses)) 
+            break
         else:
             losses.append(np.linalg.norm(c(X) - M_star)/np.linalg.norm(M_star))
         
@@ -581,7 +588,7 @@ def matrix_recovery(X0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond
     return losses
 
 
-def compute_preconditionner_applied_to_v(X,v, damping, max_iter=100):
+def compute_preconditionner_applied_to_v(X,v, damping, max_iter=100, epsilon = 10**-13):
     """
     conjugate gradient method
     """
@@ -605,7 +612,8 @@ def compute_preconditionner_applied_to_v(X,v, damping, max_iter=100):
         rs_new = np.dot(r, r)
         info['iterations'] = i + 1
         info['residual_norm'] = np.sqrt(rs_new)
-        
+        if np.sqrt(rs_new) <= 10**-13:
+            break
 
         p = r + (rs_new / rs_old) * p
         rs_old = rs_new
