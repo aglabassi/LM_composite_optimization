@@ -495,7 +495,6 @@ def matrix_recovery(X0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond
 
 
     X = X0.copy()
-    X_prev = X0.copy()
     losses = []
 
     n,r = X.shape
@@ -514,7 +513,7 @@ def matrix_recovery(X0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond
         if np.isnan(h(c(X)) ) or h(c(X)) == np.inf or h(c(X)) > 10**5:
             losses =  losses + [ 1 ] * (n_iter - len(losses)) #indicate divergence
             break
-        elif h(c(X)) <= 10**-9/2:
+        elif np.linalg.norm(c(X) - M_star)/np.linalg.norm(M_star) <= 10**-14:
             losses =  losses + [ 10**-15 ] * (n_iter - len(losses)) 
             break
         else:
@@ -535,19 +534,19 @@ def matrix_recovery(X0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond
         
         constant_stepsize = 0.00000001 #if sensing else 0.1 #if sensing else 0.1
             
-        if method == 'Scaled' or method == 'Scaled subgradient' or method == 'Precond. GD'  or match_method_pattern(method, prefix='Scaled')[0] or match_method_pattern(method, prefix='OPSA')[0]: #PAPER: Low-Rank Matrix Recovery with Scaled subgradient Methods
+        if method == 'Scaled gradient' or method == 'Scaled subgradient' or method == 'Precond. gradient'  or match_method_pattern(method, prefix='Scaled gradient')[0] or match_method_pattern(method, prefix='OPSA')[0]: #PAPER: Low-Rank Matrix Recovery with Scaled subgradient Methods
         
            
-            if method in [ 'Scaled', 'Scaled subgradient' ]:
+            if method in [ 'Scaled gradient', 'Scaled subgradient' ]:
                 damping = 0
-            elif method == 'Precond. GD':
+            elif method == 'Precond. gradient':
                 damping = np.linalg.norm(c(X) - M_star, ord='fro')
-            elif match_method_pattern(method, prefix='Scaled')[0]:
-                damping = float(match_method_pattern(method, prefix='Scaled')[1])
+            elif match_method_pattern(method, prefix='Scaled gradient')[0]:
+                damping = float(match_method_pattern(method, prefix='Scaled gradient')[1])
             elif match_method_pattern(method, prefix='OPSA')[0]:
                 damping = float(match_method_pattern(method, prefix='OPSA')[1])
         
-            precondionner_inv =   np.linalg.inv( X.T@X + damping* np.eye(r) )  #(np.inv()) for Scaled
+            precondionner_inv =   np.linalg.inv( X.T@X + damping* np.eye(r) )  #(np.inv()) for Scaled gradient
             
             
             G = g.reshape(*X.shape) if not  match_method_pattern(method, prefix='OPSA')[0] else (g.reshape(*X.shape) + damping*X) 
@@ -570,13 +569,12 @@ def matrix_recovery(X0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond
             gamma = 1.5*(h(c(X)) - 0) / np.dot(v,v) if  method in ['Gauss-Newton', 'Levenberg–Marquard (ours)'] else 2*constant_stepsize
         elif method == 'Subgradient descent' or method == 'Gradient descent':
             preconditionned_G  = g.reshape(n,r)
-            gamma = (h(c(X)) - 0) / np.sum(np.multiply(g,g)) if method == 'Subgradient descent' else constant_stepsize
+            gamma = (h(c(X)) - 0) / np.sum(np.multiply(g,g))
             
 
         else:
             raise NotImplementedError
         
-        X_prev = X
         X = X - gamma*preconditionned_G
     
     file_name = f'experiments/expbm_{method}_l_{loss_ord}_r*={r_true}_r={X.shape[1]}_condn={cond_number}_trial_{trial}.csv'
@@ -734,15 +732,15 @@ def matrix_recovery_assymetric(X0, Y0,Xstar,Ystar, M_star, n_iter, A, A_adj, y_t
             gamma = 1.5*(h(c(X,Y)) - 0) / ( np.dot(v,v) )  if method in ['Gauss-Newton', 'Levenberg–Marquard (ours)']  else constant_stepsize
           
         
-        elif method in ['Scaled' ,'Scaled subgradient', 'Precond. GD'] or match_method_pattern(method, prefix='Scaled')[0] or match_method_pattern(method, prefix='OPSA')[0]: #PAPER: Low-Rank Matrix Recovery with Scaled subgradient Methods
+        elif method in ['Scaled gradient' ,'Scaled subgradient', 'Precond. gradient'] or match_method_pattern(method, prefix='Scaled gradient')[0] or match_method_pattern(method, prefix='OPSA')[0]: #PAPER: Low-Rank Matrix Recovery with Scaled subgradient Methods
             
            
-           if method == 'Scaled' or method=='Scaled subgradient':
+           if method == 'Scaled gradient' or method=='Scaled subgradient':
                damping = 0
-           elif method == 'Precond. GD':
+           elif method == 'Precond. gradient':
                damping = np.linalg.norm(c(X,Y) - M_star, ord='fro')
-           elif match_method_pattern(method, prefix='Scaled')[0]:
-               damping = float( match_method_pattern(method, prefix='Scaled')[1])
+           elif match_method_pattern(method, prefix='Scaled gradient')[0]:
+               damping = float( match_method_pattern(method, prefix='Scaled gradient')[1])
            elif match_method_pattern(method, prefix='OPSA')[0]:
                damping = float( match_method_pattern(method, prefix='OPSA')[1])
         
@@ -865,13 +863,13 @@ import re
 
 import re
 
-def match_method_pattern(method, prefix='Scaled'):
+def match_method_pattern(method, prefix='Scaled gradient'):
     """
     Checks if the method string matches the pattern '<prefix>($<string>$)'.
     
     Args:
         method (str): The method string to check.
-        prefix (str): The prefix to match at the start of the method string. Default is 'Scaled'.
+        prefix (str): The prefix to match at the start of the method string. Default is 'Scaled gradient'.
     
     Returns:
         tuple:

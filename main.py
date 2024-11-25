@@ -10,7 +10,7 @@ if __name__ == "__main__":
     
     #Matrix
     
-    loss_ord = 1
+    loss_ord = 2
     kappa = 1
     symmetric = True
     identity = False
@@ -21,14 +21,22 @@ if __name__ == "__main__":
     T = 500
     n = 100
     np.random.seed(42)
-    r = 2
+    r = 3
     if loss_ord == 2:
-        methods = [ 'Gradient descent', 'Precond. GD', 'Gauss-Newton', 'Levenberg–Marquard (ours)'] #smoooth BM
+        if r == r_true:
+            methods = [ 'Gradient descent', 'Scaled subgradient', 'Gauss-Newton', 'Levenberg–Marquard (ours)'] #smoooth BM
+            #methods = [ 'Precond. gradient']
+        else:
+            methods = [ 'Gradient descent', 'Precond. gradient', 'Gauss-Newton', 'Levenberg–Marquard (ours)'] #smoooth BM
+            methods = [ 'Precond. gradient']
     else:
-       methods = [  'Subgradient descent' , 'Scaled subgradient','Gauss-Newton', 'Levenberg–Marquard (ours)']
-
+        if r == r_true:
+            methods = [  'Subgradient descent' , 'Scaled subgradient', 'Gauss-Newton', 'Levenberg–Marquard (ours)']
+        else:
+            methods = [  'Subgradient descent' , 'Gauss-Newton', 'Levenberg–Marquard (ours)']
+            
     init_radius_ratio = 0.01
-    keys = [(r,1), (r,10)]
+    keys = [(r,10), (r,1)]
     
     d = 20*n * r_true
     base_dir = os.path.dirname(os.path.abspath(__file__))
