@@ -36,26 +36,28 @@ def generate_rip_matrix(m, n):
 r_true = 40
 
 kappa = 1
-keys = [(40,kappa), (100,kappa)]
-n_trial = 100
+keys = [(40,1),(40,10), (100,1),(100,10)]
+n_trial = 1
 
-#os.system('rm experiments/exphad*.csv')
+os.system('rm experiments/exphad*.csv')
 for trial in range(n_trial):
     for r , kappa in keys:
         
-        m = 10*r
+        m = 100*r
         n = r
             
         
         x_star = np.concatenate((np.linspace(1, 1/kappa, r_true), np.zeros(n-r_true)))
-        print(x_star)
-        radius = 5
-        x0 = generate_point_in_b_epsilon(x_star, radius)
-        T = 200
+        radius = 0.1*np.linalg.norm(x_star**2)
+        x0 = generate_point_in_b_epsilon(x_star, np.sqrt(radius))
+        print(x0)
+        T = 100
         A = generate_rip_matrix(m, n)
         b = A@(x_star**2)
-        methods = ['vanilla_subgradient', 'projected_subgradient', 'gnp']
+        methods = ['Subgradient descent', 'Gauss-Newton', 'Levenberg–Marquard (ours)']
         base_dir = os.path.dirname(os.path.abspath(__file__))
+        
+        
         
         for method in methods:
             x = x0.copy() 
@@ -64,18 +66,24 @@ for trial in range(n_trial):
             errs = []
             for i in range(T):
                 damping = np.linalg.norm(x**2 - x_star**2)
-                errs.append( damping )
+                damping = 1 if np.isnan(damping) or damping > 10**10 else damping
+                errs.append( damping/ np.linalg.norm(x_star**2) )
                 jac = 2*np.diag(x)
                 v =  A.T@np.sign(  A@(x**2) - b )
                 gradient = jac.T @ v
                 print(method)
                 print(damping)
-                if method == 'vanilla_subgradient':
+                if method == 'Subgradient descent':
                     stepsize = np.linalg.norm( A@(x**2) - b, ord=1) / np.sum(gradient**2)
                     x = x - stepsize*gradient
-                elif method == 'gnp':
+                elif method in ['Gauss-Newton' , 'Levenberg–Marquard (ours)']:
                     stepsize =  np.linalg.norm( A@(x**2) - b, ord=1) / np.sum(v**2)
-                    x = x - stepsize * np.linalg.solve( ( jac.T@jac +  damping*np.eye(n)), jac.T@v)
+                    damping = 0 if method == 'Gauss-Newton' else damping
+                    try:
+                        preconditioned_g, _ , _, _ = np.linalg.lstsq( jac.T@jac +  damping*np.eye(n) , jac.T@v, rcond=-1)
+                    except:
+                        preconditioned_g = jac.T@v
+                    x = x - stepsize * preconditioned_g
                 
                 elif method == 'projected_subgradient':
                     # Compute the stepsize
@@ -88,7 +96,7 @@ for trial in range(n_trial):
 
    
                 full_path = os.path.join(base_dir, file_name)
-                np.savetxt(full_path, np.array(errs)/errs[0], delimiter=',') 
+                np.savetxt(full_path, np.array(errs), delimiter=',') 
     
            
 losses, stds = collect_compute_mean(keys, 1, r_true, False, methods, 'had' )
