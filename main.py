@@ -21,7 +21,7 @@ if __name__ == "__main__":
     T = 500
     n = 100
     np.random.seed(42)
-    r = 19
+    r = 3
     if loss_ord == 2:
         methods = [ 'Gradient descent', 'Precond. GD', 'Gauss-Newton, $\eta_k = \eta$', 'Levenberg–Marquard (ours), $\eta_k = \eta$'] #smoooth BM
     else:
@@ -31,10 +31,10 @@ if __name__ == "__main__":
         else:
             methods =  ['Subgradient descent', 'Gauss-Newton', 'Levenberg–Marquard (ours)']
 
-    init_radius_ratio = 0.1
-    keys = [(r_true, 1), (r_true,100), (r,1), (r,100)]
+    init_radius_ratio = 0.01
+    keys = [(r,1),(r,100)]
     
-    d =10* n * r_true
+    d = 20*n * r_true
     base_dir = os.path.dirname(os.path.abspath(__file__))
     
     if n_cpu > 1:

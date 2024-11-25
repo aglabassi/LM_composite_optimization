@@ -62,35 +62,23 @@ def trial_execution_matrix(trials, n, r_true, d, keys, init_radius_ratio, T, los
      
   
             pert = np.random.rand(*M_true.shape)
+            if symmetric:
+                pert = (pert + pert.T) /2
             Z0 = M_true + (init_radius_ratio* np.linalg.norm(M_true)/ (np.linalg.norm(pert))) * pert
 
-                
-            if not symmetric:
-                U, Sigma, VT = np.linalg.svd(Z0)
-                U_r = U[:, :r]
-                Sigma_r = Sigma[:r]
-                VT_r = VT[:r, :]
-                
-                # Compute Sigma_r^{1/2}
-                Sigma_r_sqrt = np.sqrt(Sigma_r)
-                
-                # Compute X and Y
-                X0 = U_r * Sigma_r_sqrt
-                Y0 = (VT_r.T) * Sigma_r_sqrt
-         
-                
-            if symmetric:
-                Z0 = (Z0 + Z0.T)/2
-                U, Sigma, VT = np.linalg.svd(Z0)
-                U_r = U[:, :r]
-                Sigma_r = Sigma[:r]
-                
-                # Compute Sigma_r^{1/2}
-                Sigma_r_sqrt = np.sqrt(Sigma_r)
-                
-                # Compute X0
-                X0 = U_r * Sigma_r_sqrt
-
+    
+            U, Sigma, VT = np.linalg.svd(Z0)
+            U_r = U[:, :r]
+            Sigma_r = Sigma[:r]
+            VT_r = VT[:r, :]
+            
+            # Compute Sigma_r^{1/2}
+            Sigma_r_sqrt = np.sqrt(Sigma_r)
+            
+            # Compute X and Y
+            X0 = U_r * Sigma_r_sqrt
+            Y0 = (VT_r.T) * Sigma_r_sqrt
+    
             for method in methods:
                 if symmetric:
                     matrix_recovery(X0, M_true, T, A, A_adj, y_true, loss_ord, r_true, cond_number, method, base_dir, trial)
@@ -480,51 +468,6 @@ def matrix_recovery(X0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond
     def h(M):
         return (np.linalg.norm(A(M)-y_true,ord=loss_ord)**loss_ord)/loss_ord
 
-
-
-    #X X^T flattened jacobian
-    def jacobian_c(X):
-        n, r = X.shape
-        jac = np.zeros((n*n, n*r))
-
-        for i in range(n):
-            for j in range(n):
-                for k in range(n):
-                    for l in range(r):
-                        # Derivative of c_ij with respect to x_kl
-                        if i != j:
-                            if i ==k:
-                                jac[i*n + j, k*r + l] = X[j, l]
-                            if j ==k:
-                                jac[i*n + j, k*r + l] = X[i, l]
-                                
-                                
-                        if i == j:
-                            if i == k:
-                                jac[i*n + j, k*r + l] = 2*X[i, l]
-                                
-        
-        return jac #n^2 X nr matrix
-    
-    def update_jacobian_c(jac, X):
-        n, r = X.shape
-        
-        # Update for i != j
-        for i in range(n):
-            for j in range(n):
-                if i != j:
-                    for l in range(r):
-                        # Update for i == k
-                        jac[i*n + j, i*r + l] = X[j, l]
-                        # Update for j == k
-                        jac[i*n + j, j*r + l] = X[i, l]
-    
-        # Update for i == j
-        for i in range(n):
-            for l in range(r):
-                # Update for i == k
-                jac[i*n + i, i*r + l] = 2*X[i, l]
-
         
         
     def subdifferential_h(M):
@@ -549,8 +492,8 @@ def matrix_recovery(X0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond
 
 
     X = X0.copy()
+    X_prev = X0.copy()
     losses = []
-    jacob_c = jacobian_c(X)
 
     n,r = X.shape
     for t in range(n_iter):
@@ -565,17 +508,20 @@ def matrix_recovery(X0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond
             print('---------------------')
 
         
-        if np.isnan(h(c(X)) ) or h(c(X)) == np.inf or h(c(X)) > 10**3:
-            losses.append(10**3)
+        if np.isnan(h(c(X)) ) or h(c(X)) == np.inf or h(c(X)) > 10**5:
+            losses.append(1) #indicate divergence
         else:
             losses.append(np.linalg.norm(c(X) - M_star)/np.linalg.norm(M_star))
         
-        update_jacobian_c(jacob_c, X)
         
         
         v = subdifferential_h(c(X))
         
-        g = jacob_c.T @ v
+        
+        v_mat = v.reshape(X.shape[0], X.shape[0])
+        
+        g = (( v_mat + v_mat.T )@X).reshape(-1)
+
         
         
         
@@ -623,10 +569,8 @@ def matrix_recovery(X0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond
         else:
             raise NotImplementedError
         
-
+        X_prev = X
         X = X - gamma*preconditionned_G
-        if match_method_pattern(method, prefix='OPSA')[0]:
-            X,_ = rebalance(X,X)
     
     file_name = f'experiments/expbm_{method}_l_{loss_ord}_r*={r_true}_r={X.shape[1]}_condn={cond_number}_trial_{trial}.csv'
     full_path = os.path.join(base_dir, file_name)
@@ -637,7 +581,7 @@ def matrix_recovery(X0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond
     return losses
 
 
-def compute_preconditionner_applied_to_v(X,v, damping, max_iter=100, tol= 10**-10):
+def compute_preconditionner_applied_to_v(X,v, damping, max_iter=100):
     """
     conjugate gradient method
     """
@@ -661,8 +605,6 @@ def compute_preconditionner_applied_to_v(X,v, damping, max_iter=100, tol= 10**-1
         rs_new = np.dot(r, r)
         info['iterations'] = i + 1
         info['residual_norm'] = np.sqrt(rs_new)
-        if rs_new <= tol:
-            break
         
 
         p = r + (rs_new / rs_old) * p
