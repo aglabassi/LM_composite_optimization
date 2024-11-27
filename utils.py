@@ -199,10 +199,14 @@ def plot_losses_with_styles(losses, stds, r_true, loss_ord, base_dir, problem, k
             std = std[:last_index]
 
             num_dots_adapted = int(num_dots * last_index)
+            if k[1] > 1:
+                num_dots_adapted //=2
 
             start = 0
 
             indices = np.arange(start, last_index, num_dots_adapted)
+            if k[1] > 1:
+                indices = [ i for idx,i in enumerate(indices) if idx %2 != 0]
 
             indices = np.hstack((np.zeros(1, dtype=int), indices))
             if indices.size == 0:
@@ -470,6 +474,8 @@ def matrix_recovery(X0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond
 
     def h(M):
         return (np.linalg.norm(A(M)-y_true,ord=loss_ord)**loss_ord)/loss_ord
+    
+    
 
         
         
@@ -542,9 +548,9 @@ def matrix_recovery(X0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond
             elif method == 'Precond. gradient':
                 damping = np.linalg.norm(c(X) - M_star, ord='fro')
             elif match_method_pattern(method, prefix='Scaled gradient')[0]:
-                damping = float(match_method_pattern(method, prefix='Scaled gradient')[1])
+                damping = convert_to_number(match_method_pattern(method, prefix='Scaled gradient')[1])
             elif match_method_pattern(method, prefix='OPSA')[0]:
-                damping = float(match_method_pattern(method, prefix='OPSA')[1])
+                damping = convert_to_number(match_method_pattern(method, prefix='OPSA')[1])
         
             precondionner_inv =   np.linalg.inv( X.T@X + damping* np.eye(r) )  #(np.inv()) for Scaled gradient
             
@@ -561,7 +567,7 @@ def matrix_recovery(X0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond
             
             try:
                 damping = np.linalg.norm(c(X) - M_star) if method in ['Levenberg–Marquard (ours)', 'Levenberg–Marquard (ours), $\eta_k = \eta$'] else 0
-                preconditionned_g = compute_preconditionner_applied_to_v(X, g, damping)
+                preconditionned_g = compute_preconditionner_applied_to_g_bm(X, g, damping)
             except:
                 preconditionned_g = g #No precondionning 
                 
@@ -586,23 +592,28 @@ def matrix_recovery(X0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond
     return losses
 
 
-def compute_preconditionner_applied_to_v(X,v, damping, max_iter=100, epsilon = 10**-13):
+def compute_preconditionner_applied_to_g_bm(X,g, damping, max_iter=100, epsilon = 10**-13):
     """
     conjugate gradient method
     """
+    def operator(X, g):
+        #X is n by r, g is nr 
+        g_mat = g.reshape(X.shape)
+        return (2*g_mat@X.T@X + 2*X@g_mat.T@X).reshape(-1)
+    
     n = X.shape[0]*X.shape[1]
 
-    x = np.zeros_like(v)
+    x = np.zeros_like(g)
 
 
-    r = v - (compute_bm_jac_product(X, x) + damping*x)
+    r = g - (operator(X, x) + damping*x)
     p = r.copy()
     rs_old = np.dot(r, r)
 
     info = {'iterations': 0, 'residual_norm': np.sqrt(rs_old)}
 
     for i in range(max_iter):
-        Ap = compute_bm_jac_product(X, p) + damping*p
+        Ap = operator(X, p) + damping*p
         alpha = rs_old / np.dot(p, Ap)
         x += alpha * p
         r -= alpha * Ap
@@ -620,10 +631,56 @@ def compute_preconditionner_applied_to_v(X,v, damping, max_iter=100, epsilon = 1
 
 
 
-def compute_bm_jac_product(X, v):
-    #X is n by r, v is nr 
-    V_mat = v.reshape(X.shape)
-    return (2*V_mat@X.T@X + 2*X@V_mat.T@X).reshape(-1)
+
+
+
+
+def compute_preconditionner_applied_to_g_ass(X,Y, gx, gy, damping, max_iter=100, epsilon = 10**-13):
+    """
+    conjugate gradient method
+    """
+
+    def operator(X, Y, gx, gy):
+        g_mat_x = gx.reshape(X.shape)
+        g_mat_y = gy.reshape(Y.shape)
+        
+        return np.hstack( ((X@g_mat_y.T@Y + g_mat_x @ Y.T @ Y).reshape(-1), (Y@g_mat_x.T@X + g_mat_y @ X.T @ X).reshape(-1)))
+        
+    
+
+    x = np.zeros_like(gx)
+    y = np.zeros_like(gy)
+    
+    inp = np.hstack((x,y))
+    
+    g = np.hstack((gx, gy))
+    
+
+
+    r = g - (operator(X, Y, x, y) + damping*inp)
+    p = r.copy()
+    rs_old = np.dot(r, r)
+
+    info = {'iterations': 0, 'residual_norm': np.sqrt(rs_old)}
+
+    for i in range(max_iter):
+        Ap = operator(X, Y, p[:len(x)], p[len(x): len(x) + len(y)]) + damping*p
+        alpha = rs_old / np.dot(p, Ap)
+        inp += alpha * p
+        x = inp[:len(x)]
+        y = inp[len(x): len(x) + len(y)]
+        r -= alpha * Ap
+
+        rs_new = np.dot(r, r)
+        info['iterations'] = i + 1
+        info['residual_norm'] = np.sqrt(rs_new)
+        if np.sqrt(rs_new) <= 10**-13:
+            break
+
+        p = r + (rs_new / rs_old) * p
+        rs_old = rs_new
+
+    return x,y
 
 
 
@@ -634,33 +691,6 @@ def matrix_recovery_assymetric(X0, Y0,Xstar,Ystar, M_star, n_iter, A, A_adj, y_t
 
     def h(M):
         return (np.linalg.norm(A(M)-y_true,ord=loss_ord)**loss_ord)/loss_ord
-
-
-
-    #X Y^T flattened jacobian
-    def jacobian_c(X,Y):
-        
-        m, r = X.shape
-        n = Y.shape[0]
-        jac_x = np.zeros((n*m, m*r))
-        jac_y = np.zeros((n*m, n*r))
-        
-        for i in range(n):
-            for j in range(n):
-                for l in range(r):
-                    jac_x[i*n + j, i*r + l] = Y[j, l]
-                    
-        
-        for i in range(n):
-            for j in range(n):
-                    for l in range(r):
-                        jac_y[i*n + j, j*r + l] = X[i, l]
-                    
-        
-        #return np.kron(np.eye(X.shape[0]),Y), jac_y
-        
-        return  jac_x, jac_y
-        
         
     def subdifferential_h(M):
         
@@ -698,35 +728,29 @@ def matrix_recovery_assymetric(X0, Y0,Xstar,Ystar, M_star, n_iter, A, A_adj, y_t
             print(f"r*, r            :  {(r_true, r)}")
             print(f'h(c(X,Y)) = {"(DIVERGE)" if(np.isnan(h(c(X,Y)) ) or  (h(c(X,Y)) == np.inf) ) else  h(c(X,Y))}')
             print('---------------------')
-
-        
-        if np.isnan(h(c(X,Y)) ) or h(c(X,Y)) == np.inf or h(c(X,Y)) > 10**3:
-            losses.append(10**10)
+     
+        if np.isnan(h(c(X,Y)) ) or h(c(X,Y)) == np.inf or h(c(X,Y)) > 10**5:
+            losses =  losses + [ 1 ] * (n_iter - len(losses)) #indicate divergence
+            break
+        elif np.linalg.norm(c(X,Y) - M_star)/np.linalg.norm(M_star) <= 10**-14:
+            losses =  losses + [ 10**-15 ] * (n_iter - len(losses)) 
+            break
         else:
-            losses.append(np.linalg.norm(c(X,Y) - M_star)/(np.linalg.norm(M_star)))
-        
-        jac_x, jac_y = jacobian_c(X, Y)
-        
+            losses.append(np.linalg.norm(c(X,Y) - M_star)/np.linalg.norm(M_star))
         
         v = subdifferential_h(c(X,Y))
         
-        g_x = jac_x.T @ v
-        g_y = jac_y.T @ v
+        g_x = (v.reshape((X.shape[0], Y.shape[0])) @ Y).reshape(-1)
+        g_y = (v.reshape((X.shape[0], Y.shape[0])).T @ X).reshape(-1)
         
        
         
-        constant_stepsize = 0.000001 #if sensing else 0.1
+        constant_stepsize = 0.0000001 #if sensing else 0.1
         if method in ['Gauss-Newton, $\eta_k = \eta$', 'Gauss-Newton', 'Levenberg–Marquard (ours), $\eta_k = \eta$', 'Levenberg–Marquard (ours)']:
             damping = np.linalg.norm(c(X,Y) - M_star)if method in [ 'Levenberg–Marquard (ours)', 'Levenberg–Marquard (ours), $\eta_k = \eta$'] else 0
             
-            try:
-                
-                preconditionned_g_x, _,_,_ = np.linalg.lstsq(jac_x.T @ jac_x + damping*np.eye(jac_x.shape[1],jac_x.shape[1]), g_x, rcond=None)
-                preconditionned_g_y, _,_,_ = np.linalg.lstsq(jac_y.T @ jac_y + damping*np.eye(jac_y.shape[1],jac_y.shape[1]), g_y, rcond=None)
-            except:
-                preconditionned_g_x = g_x #No precondionning 
-                preconditionned_g_y = g_y
-                
+   
+            preconditionned_g_x, preconditionned_g_y = compute_preconditionner_applied_to_g_ass(X, Y, g_x, g_y, damping)  
             preconditionned_G_x = preconditionned_g_x.reshape(*X.shape)
             preconditionned_G_y = preconditionned_g_y.reshape(*Y.shape)
             gamma = 1.5*(h(c(X,Y)) - 0) / ( np.dot(v,v) )  if method in ['Gauss-Newton', 'Levenberg–Marquard (ours)']  else constant_stepsize
@@ -740,9 +764,9 @@ def matrix_recovery_assymetric(X0, Y0,Xstar,Ystar, M_star, n_iter, A, A_adj, y_t
            elif method == 'Precond. gradient':
                damping = np.linalg.norm(c(X,Y) - M_star, ord='fro')
            elif match_method_pattern(method, prefix='Scaled gradient')[0]:
-               damping = float( match_method_pattern(method, prefix='Scaled gradient')[1])
+               damping = convert_to_number( match_method_pattern(method, prefix='Scaled gradient')[1])
            elif match_method_pattern(method, prefix='OPSA')[0]:
-               damping = float( match_method_pattern(method, prefix='OPSA')[1])
+               damping = convert_to_number( match_method_pattern(method, prefix='OPSA')[1])
         
            preconditionner_x = np.linalg.inv(Y.T@Y + damping* np.eye(X.shape[1]))
            preconditionner_y = np.linalg.inv(X.T@X + damping* np.eye(Y.shape[1]))
@@ -762,7 +786,7 @@ def matrix_recovery_assymetric(X0, Y0,Xstar,Ystar, M_star, n_iter, A, A_adj, y_t
         elif method == 'Subgradient descent' or method =='Gradient descent': 
             preconditionned_G_x = g_x.reshape(*X.shape)
             preconditionned_G_y = g_y.reshape(*Y.shape)
-            gamma = (h(c(X,Y)) - 0) / ( np.sum(np.multiply( g_x, g_x)) + np.sum(np.multiply( g_y, g_y)))  if method == 'Subgradient descent' else constant_stepsize
+            gamma = (h(c(X,Y)) - 0) / ( np.sum(np.multiply( g_x, g_x)) + np.sum(np.multiply( g_y, g_y)))
         
         else:
 
@@ -861,7 +885,20 @@ def thre(inputs, threshold, device):
 
 import re
 
-import re
+def convert_to_number(latex_str):
+    """
+    Converts a string in LaTeX-like format (e.g., '10^{-3}') to a numerical value.
+    
+    Args:
+        latex_str (str): A string representing a number in LaTeX-like format.
+    
+    Returns:
+        float: The numerical value of the input string.
+    """
+    # Replace LaTeX exponent format with Python exponentiation
+    python_expr = re.sub(r'\^{(-?\d+)}', r'**\1', latex_str)
+    # Evaluate and return the numerical result
+    return eval(python_expr)
 
 def match_method_pattern(method, prefix='Scaled gradient'):
     """
@@ -880,7 +917,7 @@ def match_method_pattern(method, prefix='Scaled gradient'):
     escaped_prefix = re.escape(prefix)
     
     # Define the regex pattern dynamically based on the prefix
-    pattern = rf'^{escaped_prefix}\(\$(.*?)\$\)$'
+    pattern = rf'^{escaped_prefix}\(\$\\lambda=(.*?)\$\)$'
     
     # Attempt to match the pattern
     match = re.match(pattern, method)

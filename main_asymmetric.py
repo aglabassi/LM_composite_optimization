@@ -9,33 +9,34 @@ from utils import create_rip_transform, generate_matrix_with_condition, gen_rand
 if __name__ == "__main__":
     
     #Matrix
-    loss_ord = 1
+
+    loss_ord = 2
     kappa = 1
     symmetric = False
     identity = False
     r_true = 2
     n_cpu = 1
     n_trial_div_n_cpu = 1
-    os.system('rm experiments/expbm*.csv') if symmetric else os.system('rm experiments/expasymmetric*.csv') 
+    #os.system('rm experiments/expbm*.csv') if symmetric else os.system('rm experiments/expasymmetric*.csv') 
     T = 500
-    n = 10
+    n = 50
     np.random.seed(42)
     r = 2
     if loss_ord == 2:
-        methods = [ 'Gradient descent', 'Precond. GD', 'Gauss-Newton, $\eta_k = \eta$', 'Levenberg–Marquard (ours), $\eta_k = \eta$'] #smoooth BM
-    else:
-        #Exact param 
         if r == r_true:
-            methods =  ['Subgradient descent', 'Scaled subgradient', 'Gauss-Newton', 'Levenberg–Marquard (ours)']
+            methods = [ 'Gradient descent', 'Scaled subgradient', 'Gauss-Newton', 'Levenberg–Marquard (ours)'] #smoooth assymetric
         else:
-            methods =  ['Subgradient descent', 'Gauss-Newton', 'OPSA($10**-3$)', 'Levenberg–Marquard (ours)']
-
-    
-
+            methods = ['Gradient descent', 'Precond. gradient', 'Gauss-Newton'  ,'Levenberg–Marquard (ours)'] #smoooth assymetric over
+    else:
+        if r == r_true:
+            methods = [ 'Subgradient descent' , 'Scaled subgradient', 'Gauss-Newton', 'Levenberg–Marquard (ours)']
+        else:
+            methods = [ 'Subgradient descent' , 'OPSA($\lambda=10^{-3}$)', 'OPSA($\lambda=10^{-8}$)', 'Gauss-Newton', 'Levenberg–Marquard (ours)']
+            
     init_radius_ratio = 0.01
-    keys = [(r,1), (r,100)]
+    keys = [(r,1), (r,10)]
     
-    d = 10 * n * r_true
+    d = 20*n * r_true
     base_dir = os.path.dirname(os.path.abspath(__file__))
     
     if n_cpu > 1:

@@ -28,7 +28,6 @@ if __name__ == "__main__":
             #methods = [ 'Precond. gradient']
         else:
             methods = [ 'Gradient descent', 'Precond. gradient', 'Gauss-Newton', 'Levenberg–Marquard (ours)'] #smoooth BM
-            methods = [ 'Precond. gradient']
     else:
         if r == r_true:
             methods = [  'Subgradient descent' , 'Scaled subgradient', 'Gauss-Newton', 'Levenberg–Marquard (ours)']
