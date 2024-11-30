@@ -10,7 +10,7 @@ if __name__ == "__main__":
     
     #Matrix
     
-    loss_ord = 2
+    loss_ord = 1
     kappa = 1
     symmetric = True
     identity = False

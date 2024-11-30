@@ -503,6 +503,11 @@ def matrix_recovery(X0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond
     X = X0.copy()
     losses = []
 
+    def operator(X, g):
+        #X is n by r, g is nr 
+        g_mat = g.reshape(X.shape)
+        return (2*g_mat@X.T@X + 2*X@g_mat.T@X).reshape(-1)
+    
     n,r = X.shape
     for t in range(n_iter):
         
@@ -572,7 +577,18 @@ def matrix_recovery(X0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond
                 preconditionned_g = g #No precondionning 
                 
             preconditionned_G = preconditionned_g.reshape(n,r)
-            gamma = 1.5*(h(c(X)) - 0) / np.dot(v,v) if  method in ['Gauss-Newton', 'Levenberg–Marquard (ours)'] else 2*constant_stepsize
+            
+            gamma = (h(c(X)) - 0) / np.dot(v,v) if  method in ['Gauss-Newton', 'Levenberg–Marquard (ours)'] else 2*constant_stepsize
+            
+            if method ==  'Levenberg–Marquard (ours)':
+                gamma = (h(c(X)) - 0) / np.dot(v,v)
+            elif method == 'Gauss-Newton':
+                gamma = (h(c(X)) - 0) / np.dot(operator(X,g),preconditionned_g)
+                
+                
+                
+            
+            
         elif method == 'Subgradient descent' or method == 'Gradient descent':
             preconditionned_G  = g.reshape(n,r)
             gamma = (h(c(X)) - 0) / np.sum(np.multiply(g,g))
@@ -641,6 +657,7 @@ def compute_preconditionner_applied_to_g_ass(X,Y, gx, gy, damping, max_iter=100,
     """
 
     def operator(X, Y, gx, gy):
+        #Computes nabla c(X,Y).T * nabla c(X,Y) \cdot vect(gx, gy) 
         g_mat_x = gx.reshape(X.shape)
         g_mat_y = gy.reshape(Y.shape)
         
@@ -710,11 +727,25 @@ def matrix_recovery_assymetric(X0, Y0,Xstar,Ystar, M_star, n_iter, A, A_adj, y_t
 
         
 
+
         return v # n^2 dimension
+    
+    def operator(X, Y, gx, gy):
+        #Computes nabla c(X,Y).T * nabla c(X,Y) \cdot vect(gx, gy) 
+        g_mat_x = gx.reshape(X.shape)
+        g_mat_y = gy.reshape(Y.shape)
+        
+        return np.hstack( ((X@g_mat_y.T@Y + g_mat_x @ Y.T @ Y).reshape(-1), (Y@g_mat_x.T@X + g_mat_y @ X.T @ X).reshape(-1)))
+        
+    
+    
+    
     
     X = X0.copy()
     Y = Y0.copy()
     losses = []
+
+
 
     n,r = X.shape
     for t in range(n_iter):
@@ -753,7 +784,17 @@ def matrix_recovery_assymetric(X0, Y0,Xstar,Ystar, M_star, n_iter, A, A_adj, y_t
             preconditionned_g_x, preconditionned_g_y = compute_preconditionner_applied_to_g_ass(X, Y, g_x, g_y, damping)  
             preconditionned_G_x = preconditionned_g_x.reshape(*X.shape)
             preconditionned_G_y = preconditionned_g_y.reshape(*Y.shape)
-            gamma = 1.5*(h(c(X,Y)) - 0) / ( np.dot(v,v) )  if method in ['Gauss-Newton', 'Levenberg–Marquard (ours)']  else constant_stepsize
+            if method == 'Gauss-Newton':
+                cctg =  operator(X, Y, preconditionned_g_x,  preconditionned_g_y)
+                dir1 = cctg[:X.shape[0]*r]
+                dir2 = cctg[X.shape[0]*r:]
+                
+                gamma = (h(c(X,Y)) - 0) / ( np.dot(dir1,preconditionned_g_x)  + np.dot(dir2, preconditionned_g_y))
+                
+            elif method == 'Levenberg–Marquard (ours)':
+                gamma = (h(c(X,Y)) - 0) / ( np.dot(v,v) )
+            else:
+                gamma = constant_stepsize
           
         
         elif method in ['Scaled gradient' ,'Scaled subgradient', 'Precond. gradient'] or match_method_pattern(method, prefix='Scaled gradient')[0] or match_method_pattern(method, prefix='OPSA')[0]: #PAPER: Low-Rank Matrix Recovery with Scaled subgradient Methods

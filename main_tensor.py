@@ -155,19 +155,19 @@ def run_methods(methods, keys, n, r_true, target_d, identity, device,
                                 perturb=radius_init, fix_G=fix_G)
 
 # Updated variables with specified values
-methods = ['gnp','subGD']
-keys = [ (2,1), (2,10)]
-n = 10
+methods = ['Subgradient descent', 'Gauss-Newton', 'Levenberg–Marquard (ours)']
+keys = [(2,1), (2,10), (3,1), (3,10)]
+n = 50
 r_true = 2
 target_d = n * r_true * 10
 identity = False
 device = 'cpu'
 stepsize = 0.4
 decay_constant = 1 - 0.45 * stepsize
-n_iter = 1000
+n_iter = 500
 spectral_init = False
 base_dir = os.path.dirname(os.path.abspath(__file__))
-loss_ord = 1
+loss_ord = 2
 radius_init = 0.00001
 fix_G = True
 
@@ -176,10 +176,7 @@ run_methods(methods, keys, n, r_true, target_d, identity, device,
             stepsize, decay_constant, n_iter, spectral_init, base_dir, 
             loss_ord, radius_init, fix_G)
 
-errs = collect_compute_mean(keys, loss_ord, r_true,False, methods, 'tensor')
-plot_losses_with_styles(errs, r_true, loss_ord, base_dir,  ('CP' if fix_G else 'Tucker'))
-
-
-
+errs, stds = collect_compute_mean(keys, loss_ord, r_true,False, methods, 'tensor')
+plot_losses_with_styles(errs, stds, r_true, loss_ord, base_dir,  ('CP' if fix_G else 'Tucker'), 1)
 
 

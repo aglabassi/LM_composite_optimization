@@ -108,6 +108,9 @@ def tensor_recovery(method, G_true, factors_true, G0_init, factors0_init, X,Y, m
         
         print(k)
         print(dist_to_sol_emb)
+        if np.isnan(dist_to_sol_emb):
+            errs = errs +  [errs[0]*10 for _ in range(n_iter - len(errs)) ]
+            break
         print(h_c_x)
         print(best_error)      
         print('---')
@@ -116,18 +119,34 @@ def tensor_recovery(method, G_true, factors_true, G0_init, factors0_init, X,Y, m
         subgradient[:delim] = 0
         jac_c[:, :delim] = 0
         
-        
-        stepsize = (h_c_x - best_error) / (torch.dot(subgradient, subgradient)) if method == 'gnp' else (h_c_x - best_error) / (torch.dot(jac_c.T @ subgradient, jac_c.T @ subgradient))
+
         direction = 0
-        if method == 'gnp':
+        damping = dist_to_sol_emb if method == 'Levenberg–Marquard (ours)' else 0
+        if method  == 'Gauss-Newton':
             try:
-                direction = torch.linalg.solve( jac_c.T@jac_c + (dist_to_sol_emb)*torch.eye(jac_c.shape[1]).to(device),  jac_c.T @ subgradient) 
+                direction = torch.linalg.lstsq( jac_c.T@jac_c,  jac_c.T @ subgradient).solution 
             except:
                 direction = jac_c.T @ subgradient
-        elif method == 'subGD':
+                
+        
+        elif method == 'Levenberg–Marquard (ours)':
+            direction = torch.linalg.solve(jac_c.T@jac_c + (damping)*torch.eye(jac_c.shape[1]).to(device),jac_c.T @ subgradient )
+
+        elif method == 'Subgradient descent':
             direction = jac_c.T @ subgradient
         else:
             raise NotImplementedError()
+            
+        
+        if method == 'Gauss-Newton':
+            stepsize = (h_c_x - best_error) / (torch.dot(direction, jac_c.T@jac_c@direction ))
+            
+        elif method == 'Levenberg–Marquard (ours)':
+            stepsize = (h_c_x - best_error) / (torch.dot(subgradient, subgradient))
+        elif method == 'Subgradient descent':
+            stepsize = (h_c_x - best_error) / (torch.dot(jac_c.T @ subgradient, jac_c.T @ subgradient))
+            
+        
         
         
         concatenated = concatenated - stepsize * direction
@@ -139,7 +158,7 @@ def tensor_recovery(method, G_true, factors_true, G0_init, factors0_init, X,Y, m
     
     file_name = f'experiments/exptensor_{method}_l_{loss_ord}_r*={r_true}_r={r}_condn={cond_number}_trial_{0}.csv'
     full_path = os.path.join(base_dir, file_name)
-    np.savetxt(full_path, np.array(errs)/(errs[0]), delimiter=',') 
+    np.savetxt(full_path, np.array(errs)/(torch.linalg.norm(X)), delimiter=',') 
     full_path = os.path.join(base_dir, file_name)
         
     return 'dont care'

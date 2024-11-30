@@ -10,7 +10,7 @@ if __name__ == "__main__":
     
     #Matrix
 
-    loss_ord = 2
+    loss_ord = 1
     kappa = 1
     symmetric = False
     identity = False
@@ -33,7 +33,7 @@ if __name__ == "__main__":
         else:
             methods = [ 'Subgradient descent' , 'OPSA($\lambda=10^{-3}$)', 'OPSA($\lambda=10^{-8}$)', 'Gauss-Newton', 'Levenberg–Marquard (ours)']
             
-    init_radius_ratio = 0.01
+    init_radius_ratio = 0.001
     keys = [(r,1), (r,10)]
     
     d = 20*n * r_true
