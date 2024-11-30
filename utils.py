@@ -131,7 +131,6 @@ def plot_losses_with_styles(losses, stds, r_true, loss_ord, base_dir, problem, k
 
 
 
-    
     colors = dict()
     
     methods_ = list(losses.keys())
@@ -195,7 +194,7 @@ def plot_losses_with_styles(losses, stds, r_true, loss_ord, base_dir, problem, k
             # Determine the index where errors have converged to machine epsilon
             convergence_threshold = 1e-12   # Slightly above machine epsilon to account for numerical errors
             converged_indices = np.where(errs <= convergence_threshold)[0]
-
+            print(method, k)
             if converged_indices.size > 0:
                 last_index = converged_indices[0] + 1  # Include the converged point
             else:
@@ -327,8 +326,15 @@ def plot_losses_with_styles(losses, stds, r_true, loss_ord, base_dir, problem, k
             combined_labels.append('')  # Empty label for dummy handle
 
     # Place legends
-    height = 0.61 if problem=='Burer-Monteiro' else 0.77
-    print(problem)
+    if problem=='Burer-Monteiro' or (problem == 'Tensor' and loss_ord == 1):
+        height = 0.61 
+    elif problem  == 'Hadamard':
+        height = 0.77
+    elif (problem == 'CP' and loss_ord == 2):
+        height = 1
+    else:
+        height = 0.77
+
     # Methods legend at upper right
     legend1 = ax.legend(
         method_handles,

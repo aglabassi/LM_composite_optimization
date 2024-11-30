@@ -145,7 +145,7 @@ def run_methods(methods, keys, n, r_true, target_d, identity, device,
                 G0, factors0 = tucker(T_true + random_perturbation((n, n, n), radius_init).to(device), rank=[r, r, r])
             
             # Run selected method
-            if method == 'scaled_GD':
+            if method == 'Scaled gradient':
                 rpca(G, factors, G0, factors0, T_true, T_true_corr, measurement_operator, r_true, kappa, 
                      [r, r, r], treshold_0, treshold_1, stepsize, decay_constant, n_iter, 10**-10, device, 
                      spectral_init, base_dir, loss_ord, perturb=radius_init, fix_G=fix_G)
@@ -155,21 +155,27 @@ def run_methods(methods, keys, n, r_true, target_d, identity, device,
                                 perturb=radius_init, fix_G=fix_G)
 
 # Updated variables with specified values
-methods = ['Gauss-Newton','Levenberg–Marquard (ours)']
-keys = [(3,10)]
-n = 50
+#os.system('rm experiments/exptensor*.csv')
+n = 20
 r_true = 2
 target_d = n * r_true * 20
-identity = True
+identity = False
 device = 'cpu'
 stepsize = 0.4
 decay_constant = 1 - 0.45 * stepsize
-n_iter = 500
+n_iter = 1000
 spectral_init = False
 base_dir = os.path.dirname(os.path.abspath(__file__))
-loss_ord = 1
+loss_ord = 2
 radius_init = 0.00001
 fix_G = True
+keys = [(2,1), (2,10), (4,1), (4,10)]
+if loss_ord == 1:
+    methods = ['Subgradient descent', 'Gauss-Newton', 'Levenberg–Marquard (ours)']
+elif loss_ord == 2:
+    methods = ['Gradient descent', 'Scaled gradient' ,  'Gauss-Newton', 'Levenberg–Marquard (ours)']
+    
+
 
 # Call the function
 run_methods(methods, keys, n, r_true, target_d, identity, device, 

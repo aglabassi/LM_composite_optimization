@@ -132,7 +132,7 @@ def tensor_recovery(method, G_true, factors_true, G0_init, factors0_init, X,Y, m
         elif method == 'Levenberg–Marquard (ours)':
             direction = torch.linalg.solve(jac_c.T@jac_c + (damping)*torch.eye(jac_c.shape[1]).to(device),jac_c.T @ subgradient )
 
-        elif method == 'Subgradient descent':
+        elif method in ['Subgradient descent', 'Gradient descent']:
             direction = jac_c.T @ subgradient
         else:
             raise NotImplementedError()
@@ -143,7 +143,7 @@ def tensor_recovery(method, G_true, factors_true, G0_init, factors0_init, X,Y, m
             
         elif method == 'Levenberg–Marquard (ours)':
             stepsize = (h_c_x - best_error) / (torch.dot(subgradient, subgradient))
-        elif method == 'Subgradient descent':
+        elif method in ['Subgradient descent', 'Gradient descent']:
             stepsize = (h_c_x - best_error) / (torch.dot(jac_c.T @ subgradient, jac_c.T @ subgradient))
             
         

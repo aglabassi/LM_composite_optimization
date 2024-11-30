@@ -10,7 +10,7 @@ if __name__ == "__main__":
     
     #Matrix
     
-    loss_ord = 2
+    loss_ord = 1
     kappa = 1
     symmetric = True
     identity = False
@@ -29,8 +29,7 @@ if __name__ == "__main__":
     else:
         methods = [  'Subgradient descent' , 'Scaled subgradient', 'Gauss-Newton', 'Levenberg–Marquard (ours)']
         methods = [  'Subgradient descent' , 'Gauss-Newton', 'Levenberg–Marquard (ours)']
-        methods_all = [ 'Subgradient descent' , 'Scaled subgradient', 'OPSA($\lambda=10^{-3}$)', 'OPSA($\lambda=10^{-8}$)',   'Gauss-Newton', 'Levenberg–Marquard (ours)']
-        methods_test = ['Gauss-Newton']
+        methods_all = methods_test = [ 'Subgradient descent', 'Scaled subgradient', 'OPSA($\lambda=10^{-3}$)', 'OPSA($\lambda=10^{-8}$)',   'Gauss-Newton', 'Levenberg–Marquard (ours)']
     init_radius_ratio = 0.01
     keys_all = [(r_true, 1), (r_true,10), (r,10), (r,1)]
     keys_test = keys_all
