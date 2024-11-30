@@ -10,7 +10,7 @@ if __name__ == "__main__":
     
     #Matrix
     
-    loss_ord = 1
+    loss_ord = 2
     kappa = 1
     symmetric = True
     identity = False
@@ -23,34 +23,32 @@ if __name__ == "__main__":
     np.random.seed(42)
     r = 3
     if loss_ord == 2:
-        if r == r_true:
-            methods = [ 'Gradient descent', 'Scaled subgradient', 'Gauss-Newton', 'Levenberg–Marquard (ours)'] #smoooth BM
-            #methods = [ 'Precond. gradient']
-        else:
-            methods = [ 'Gradient descent', 'Precond. gradient', 'Gauss-Newton', 'Levenberg–Marquard (ours)'] #smoooth BM
+        methods= [ 'Gauss-Newton','Gradient descent', 'Precond. gradient', 'Levenberg–Marquard (ours)', 'Scaled gradient', 'Scaled gradient($\lambda=10^{-3}$)', 'Scaled gradient($\lambda=10^{-8}$)']
+        methods_test = ['Scaled gradient']
+        methods_all = methods_test =  methods
     else:
-        if r == r_true:
-            methods = [  'Subgradient descent' , 'Scaled subgradient', 'Gauss-Newton', 'Levenberg–Marquard (ours)']
-        else:
-            methods = [  'Subgradient descent' , 'Gauss-Newton', 'Levenberg–Marquard (ours)']
-            
+        methods = [  'Subgradient descent' , 'Scaled subgradient', 'Gauss-Newton', 'Levenberg–Marquard (ours)']
+        methods = [  'Subgradient descent' , 'Gauss-Newton', 'Levenberg–Marquard (ours)']
+        methods_all = [ 'Subgradient descent' , 'Scaled subgradient', 'OPSA($\lambda=10^{-3}$)', 'OPSA($\lambda=10^{-8}$)',   'Gauss-Newton', 'Levenberg–Marquard (ours)']
+        methods_test = ['Gauss-Newton']
     init_radius_ratio = 0.01
-    keys = [(r,10), (r,1)]
+    keys_all = [(r_true, 1), (r_true,10), (r,10), (r,1)]
+    keys_test = keys_all
     
     d = 20*n * r_true
     base_dir = os.path.dirname(os.path.abspath(__file__))
     
     if n_cpu > 1:
         
-        processes = [  Process(name=f"cpu {cpu}", target=partial(trial_execution_matrix, range(cpu*n_trial_div_n_cpu, (cpu+1)*n_trial_div_n_cpu), n, r_true, d, keys, init_radius_ratio, T, loss_ord, base_dir, methods, symmetric, identity))
+        processes = [  Process(name=f"cpu {cpu}", target=partial(trial_execution_matrix, range(cpu*n_trial_div_n_cpu, (cpu+1)*n_trial_div_n_cpu), n, r_true, d, keys_test, init_radius_ratio, T, loss_ord, base_dir, methods, symmetric, identity))
                     for cpu in range(n_cpu) ]  
     
         
         a = list(map(lambda p: p.start(), processes)) #run processes
         b = list(map(lambda p: p.join(), processes)) #join processes
     else:
-        trial_execution_matrix(range(0, n_trial_div_n_cpu), n, r_true, d, keys, init_radius_ratio, T, loss_ord, base_dir, methods, symmetric, identity)
+        trial_execution_matrix(range(0, n_trial_div_n_cpu), n, r_true, d, keys_test, init_radius_ratio, T, loss_ord, base_dir, methods_test, symmetric, identity)
     
 
-    losses, stds = collect_compute_mean(keys, loss_ord, r_true, False, methods, 'bm' if symmetric else 'asymmetric' )
+    losses, stds = collect_compute_mean(keys_all, loss_ord, r_true, False, methods_all, 'bm' if symmetric else 'asymmetric' )
     plot_losses_with_styles(losses, stds, r_true, loss_ord, base_dir, "Burer-Monteiro" if symmetric else 'Asymmetric', kappa)

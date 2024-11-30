@@ -21,7 +21,7 @@ if __name__ == "__main__":
     T = 500
     n = 50
     np.random.seed(42)
-    r = 2
+    r = 3
     if loss_ord == 2:
         if r == r_true:
             methods = [ 'Gradient descent', 'Scaled subgradient', 'Gauss-Newton', 'Levenberg–Marquard (ours)'] #smoooth assymetric

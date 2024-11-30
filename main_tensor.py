@@ -155,19 +155,19 @@ def run_methods(methods, keys, n, r_true, target_d, identity, device,
                                 perturb=radius_init, fix_G=fix_G)
 
 # Updated variables with specified values
-methods = ['Subgradient descent', 'Gauss-Newton', 'Levenberg–Marquard (ours)']
-keys = [(2,1), (2,10), (3,1), (3,10)]
+methods = ['Gauss-Newton','Levenberg–Marquard (ours)']
+keys = [(3,10)]
 n = 50
 r_true = 2
-target_d = n * r_true * 10
-identity = False
+target_d = n * r_true * 20
+identity = True
 device = 'cpu'
 stepsize = 0.4
 decay_constant = 1 - 0.45 * stepsize
 n_iter = 500
 spectral_init = False
 base_dir = os.path.dirname(os.path.abspath(__file__))
-loss_ord = 2
+loss_ord = 1
 radius_init = 0.00001
 fix_G = True
 

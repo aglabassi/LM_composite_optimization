@@ -130,23 +130,17 @@ def plot_losses_with_styles(losses, stds, r_true, loss_ord, base_dir, problem, k
     mpl.rcParams['lines.markersize'] = 10
 
 
-    # Define a color palette commonly used in optimization papers (Tableau 10)
-    tableau_colors_temp = [
-        '#dc267f',  # baseline
-        '#ffb000',  # COMPETITOR 1
-        '#fe6100',  # COMPETITOR 2 
-        '#648fff'   # COMPETITOR 3 
-    ]
-    our_color =   '#785ef0'  # OUR (Ultramarine 40)
-    methods = list(losses.keys())
+
     
-    tableau_colors = tableau_colors_temp[:len(methods)-1] + [our_color]
-    for m in methods:
-        for m2 in methods:
+    colors = dict()
+    
+    methods_ = list(losses.keys())
+    
+    for m in methods_:
+        for m2 in methods_:
             assert losses[m].keys() == losses[m2].keys(), "All methods must have the same keys."
 
-    # Ensure enough colors for each method
-    assert len(tableau_colors) >= len(methods), "Not enough colors for the number of methods."
+
 
     markers = ['o', '^', 'D', 's', 'P', '*', 'X', 'v', '<', '>']  # Extended markers list
     linestyles = ['-', ':']  # Different linestyles
@@ -154,7 +148,7 @@ def plot_losses_with_styles(losses, stds, r_true, loss_ord, base_dir, problem, k
     fig, ax = plt.subplots()
     ax.tick_params(axis='both', which='major', labelsize=25)
 
-    keys = list(losses[methods[0]].keys())
+    keys = list(losses[methods_[0]].keys())
 
     rs = []
     cs = []
@@ -171,13 +165,27 @@ def plot_losses_with_styles(losses, stds, r_true, loss_ord, base_dir, problem, k
     # Initialize dictionaries to store unique styles for legends
     marker_styles = {}
     linestyle_styles = {}
-    method_colors = {}
+    
+    method_colors = {
+    'Subgradient descent': '#dc267f',
+    'Gradient descent': '#dc267f',  # Same color as 'Subgradient descent'
+    'Scaled gradient': '#ffaf00',
+    'Scaled gradient($\lambda=10^{-3}$)': '#ffb000',
+    'Scaled gradient($\lambda=10^{-8}$)': '#ffa800',
+    'Scaled subgradient': '#ffaf00',  # Same color as 'Scaled gradient'
+    'OPSA($\lambda=10^{-3}$)': '#97e60d',
+    'OPSA($\lambda=10^{-8}$)': '#94cc1a',
+    'Precond. gradient': '#fe6100',
+    'Gauss-Newton': '#648fff',
+    'Levenberg–Marquard (ours)': '#785ef0'
+    }
 
-    for idx_m, method in enumerate(methods):
-        color = tableau_colors[idx_m % len(tableau_colors)]
-        method_colors[method] = color  # Store color for the method
+    methods = [ method for idx_m, (method, color) in enumerate(method_colors.items(), start=1)   if method in methods_ ]
+    for method in methods:
 
+        color =  method_colors[method] 
 
+        
         for idx, k in enumerate(keys):
             r_index = rs.index(k[0])
             c_index = cs.index(k[1])
@@ -191,7 +199,6 @@ def plot_losses_with_styles(losses, stds, r_true, loss_ord, base_dir, problem, k
             if converged_indices.size > 0:
                 last_index = converged_indices[0] + 1  # Include the converged point
             else:
-                print(errs)
                 last_index = len(errs)
 
             # Slice the errors up to the convergence point
@@ -524,9 +531,6 @@ def matrix_recovery(X0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond
         if np.isnan(h(c(X)) ) or h(c(X)) == np.inf or h(c(X)) > 10**5:
             losses =  losses + [ 1 ] * (n_iter - len(losses)) #indicate divergence
             break
-        elif np.linalg.norm(c(X) - M_star)/np.linalg.norm(M_star) <= 10**-14:
-            losses =  losses + [ 10**-15 ] * (n_iter - len(losses)) 
-            break
         else:
             losses.append(np.linalg.norm(c(X) - M_star)/np.linalg.norm(M_star))
         
@@ -558,7 +562,6 @@ def matrix_recovery(X0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond
                 damping = convert_to_number(match_method_pattern(method, prefix='OPSA')[1])
         
             precondionner_inv =   np.linalg.inv( X.T@X + damping* np.eye(r) )  #(np.inv()) for Scaled gradient
-            
             
             G = g.reshape(*X.shape) if not  match_method_pattern(method, prefix='OPSA')[0] else (g.reshape(*X.shape) + damping*X) 
             preconditionned_G = G @ precondionner_inv
