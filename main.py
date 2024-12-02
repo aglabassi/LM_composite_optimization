@@ -10,7 +10,7 @@ if __name__ == "__main__":
     
     #Matrix
     
-    loss_ord = 1
+    loss_ord = 2
     kappa = 1
     symmetric = True
     identity = False
@@ -19,19 +19,20 @@ if __name__ == "__main__":
     n_trial_div_n_cpu = 1
     #os.system('rm experiments/expbm*.csv') if symmetric else os.system('rm experiments/expasymmetric*.csv') 
     T = 500
-    n = 100
+    n = 20
     np.random.seed(42)
-    r = 3
+    r = 19
     if loss_ord == 2:
-        methods= [ 'Gauss-Newton','Gradient descent', 'Precond. gradient', 'Levenberg–Marquard (ours)', 'Scaled gradient', 'Scaled gradient($\lambda=10^{-3}$)', 'Scaled gradient($\lambda=10^{-8}$)']
-        methods_test = ['Scaled gradient']
-        methods_all = methods_test =  methods
+        methods= [ 'Gauss-Newton','Gradient descent', 'Precond. gradient', 'Levenberg–Marquard (ours)', 'Scaled gradient', 'Scaled gradient($\lambda=10^{-8}$)']
+        methods_test = []
+        methods_all =  methods     
     else:
         methods = [  'Subgradient descent' , 'Scaled subgradient', 'Gauss-Newton', 'Levenberg–Marquard (ours)']
-        methods = [  'Subgradient descent' , 'Gauss-Newton', 'Levenberg–Marquard (ours)']
-        methods_all = methods_test = [ 'Subgradient descent', 'Scaled subgradient', 'OPSA($\lambda=10^{-3}$)', 'OPSA($\lambda=10^{-8}$)',   'Gauss-Newton', 'Levenberg–Marquard (ours)']
+        methods_test = []
+        methods_all = [ 'Subgradient descent', 'Scaled subgradient', 'OPSA($\lambda=10^{-3}$)', 'OPSA($\lambda=10^{-8}$)',   'Gauss-Newton', 'Levenberg–Marquard (ours)']
+
     init_radius_ratio = 0.01
-    keys_all = [(r_true, 1), (r_true,10), (r,10), (r,1)]
+    keys_all = [(r_true, 1), (r_true,100), (r,100), (r,1)]
     keys_test = keys_all
     
     d = 20*n * r_true

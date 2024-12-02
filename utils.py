@@ -168,14 +168,14 @@ def plot_losses_with_styles(losses, stds, r_true, loss_ord, base_dir, problem, k
     method_colors = {
     'Subgradient descent': '#dc267f',
     'Gradient descent': '#dc267f',  # Same color as 'Subgradient descent'
-    'Scaled gradient': '#ffaf00',
-    'Scaled gradient($\lambda=10^{-3}$)': '#ffb000',
-    'Scaled gradient($\lambda=10^{-8}$)': '#ffa800',
+    'Scaled gradient': '#ffb000',
+    'Scaled gradient($\lambda=10^{-3}$)': '#ffa800',
+    'Scaled gradient($\lambda=10^{-8}$)': '#CD853F',
     'Scaled subgradient': '#ffaf00',  # Same color as 'Scaled gradient'
     'OPSA($\lambda=10^{-3}$)': '#97e60d',
     'OPSA($\lambda=10^{-8}$)': '#94cc1a',
     'Precond. gradient': '#fe6100',
-    'Gauss-Newton': '#648fff',
+    'Gauss-Newton': '#648fff'  ,
     'Levenberg–Marquard (ours)': '#785ef0'
     }
 
@@ -326,12 +326,16 @@ def plot_losses_with_styles(losses, stds, r_true, loss_ord, base_dir, problem, k
             combined_labels.append('')  # Empty label for dummy handle
 
     # Place legends
-    if problem=='Burer-Monteiro' or (problem == 'Tensor' and loss_ord == 1):
+    if  (problem == 'Tensor' and loss_ord == 1):
         height = 0.61 
     elif problem  == 'Hadamard':
         height = 0.77
     elif (problem == 'CP' and loss_ord == 2):
         height = 1
+    elif problem == 'Burer-Monteiro':
+        height = 0.86
+    elif problem == 'Asymmetric':
+        height = 0.83
     else:
         height = 0.77
 
@@ -372,7 +376,7 @@ def plot_losses_with_styles(losses, stds, r_true, loss_ord, base_dir, problem, k
     plt.tight_layout()
 
     # Saving the figure in a vector format (PDF)
-    fig_path = os.path.join(base_dir, f'experiments/exp_l{loss_ord}_{problem}_{kappa}.pdf')
+    fig_path = os.path.join(base_dir, f'experiments/exp_l{loss_ord}_{problem}.pdf')
     plt.savefig(fig_path, format='pdf', bbox_inches='tight')
 
     # Display the plot
@@ -537,6 +541,10 @@ def matrix_recovery(X0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond
         if np.isnan(h(c(X)) ) or h(c(X)) == np.inf or h(c(X)) > 10**5:
             losses =  losses + [ 1 ] * (n_iter - len(losses)) #indicate divergence
             break
+        elif np.linalg.norm(c(X) - M_star)/np.linalg.norm(M_star) <= 10**-14:
+            losses =  losses + [ 10**-15 ] * (n_iter - len(losses)) 
+            break
+        
         else:
             losses.append(np.linalg.norm(c(X) - M_star)/np.linalg.norm(M_star))
         

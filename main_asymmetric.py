@@ -10,7 +10,7 @@ if __name__ == "__main__":
     
     #Matrix
 
-    loss_ord = 1
+    loss_ord = 2
     kappa = 1
     symmetric = False
     identity = False
@@ -21,20 +21,18 @@ if __name__ == "__main__":
     T = 500
     n = 50
     np.random.seed(42)
-    r = 3
+    r = 5
     if loss_ord == 2:
-        if r == r_true:
-            methods = [ 'Gradient descent', 'Scaled subgradient', 'Gauss-Newton', 'Levenberg–Marquard (ours)'] #smoooth assymetric
-        else:
-            methods = ['Gradient descent', 'Precond. gradient', 'Gauss-Newton'  ,'Levenberg–Marquard (ours)'] #smoooth assymetric over
+        methods= [ 'Gauss-Newton','Gradient descent', 'Precond. gradient', 'Levenberg–Marquard (ours)', 'Scaled gradient', 'Scaled gradient($\lambda=10^{-8}$)']
+        methods_all = methods
+        methods_test = []
     else:
-        if r == r_true:
-            methods = [ 'Subgradient descent' , 'Scaled subgradient', 'Gauss-Newton', 'Levenberg–Marquard (ours)']
-        else:
-            methods = [ 'Subgradient descent' , 'OPSA($\lambda=10^{-3}$)', 'OPSA($\lambda=10^{-8}$)', 'Gauss-Newton', 'Levenberg–Marquard (ours)']
+ 
+        methods = [ 'Subgradient descent' , 'OPSA($\lambda=10^{-3}$)', 'OPSA($\lambda=10^{-8}$)', 'Gauss-Newton', 'Levenberg–Marquard (ours)']
             
     init_radius_ratio = 0.001
-    keys = [(r,1), (r,10)]
+    keys = [(r_true, 1), (r_true,100), (r,1), (r,100)]
+    keys_all = keys
     
     d = 20*n * r_true
     base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -48,8 +46,8 @@ if __name__ == "__main__":
         a = list(map(lambda p: p.start(), processes)) #run processes
         b = list(map(lambda p: p.join(), processes)) #join processes
     else:
-        trial_execution_matrix(range(0, n_trial_div_n_cpu), n, r_true, d, keys, init_radius_ratio, T, loss_ord, base_dir, methods, symmetric, identity)
+        trial_execution_matrix(range(0, n_trial_div_n_cpu), n, r_true, d, keys, init_radius_ratio, T, loss_ord, base_dir, methods_test, symmetric, identity)
     
 
-    losses, stds = collect_compute_mean(keys, loss_ord, r_true, False, methods, 'bm' if symmetric else 'asymmetric' )
+    losses, stds = collect_compute_mean(keys_all, loss_ord, r_true, False, methods_all, 'bm' if symmetric else 'asymmetric' )
     plot_losses_with_styles(losses, stds, r_true, loss_ord, base_dir, "Burer-Monteiro" if symmetric else 'Asymmetric', kappa)
