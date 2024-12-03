@@ -109,12 +109,12 @@ def tensor_recovery(method, G_true, factors_true, G0_init, factors0_init, X,Y, m
         print(k)
         print(dist_to_sol_emb)
         if np.isnan(dist_to_sol_emb):
-            errs = errs +  [errs[0]*10 for _ in range(n_iter - len(errs)) ]
+            errs = errs +  [1 for _ in range(n_iter - len(errs)) ]
             break
         print(h_c_x)
         print(best_error)      
         print('---')
-        errs.append(dist_to_sol_emb)
+        errs.append(dist_to_sol_emb /(torch.linalg.norm(X)))
         
         subgradient[:delim] = 0
         jac_c[:, :delim] = 0
@@ -158,7 +158,7 @@ def tensor_recovery(method, G_true, factors_true, G0_init, factors0_init, X,Y, m
     
     file_name = f'experiments/exptensor_{method}_l_{loss_ord}_r*={r_true}_r={r}_condn={cond_number}_trial_{0}.csv'
     full_path = os.path.join(base_dir, file_name)
-    np.savetxt(full_path, np.array(errs)/(torch.linalg.norm(X)), delimiter=',') 
+    np.savetxt(full_path, np.array(errs), delimiter=',') 
     full_path = os.path.join(base_dir, file_name)
         
     return 'dont care'
