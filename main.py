@@ -19,9 +19,9 @@ if __name__ == "__main__":
     n_trial_div_n_cpu = 1
     #os.system('rm experiments/expbm*.csv') if symmetric else os.system('rm experiments/expasymmetric*.csv') 
     T = 500
-    n = 20
+    n = 100
     np.random.seed(42)
-    r = 19
+    r = 5
     if loss_ord == 2:
         methods= [ 'Gauss-Newton','Gradient descent', 'Precond. gradient', 'Levenberg–Marquard (ours)', 'Scaled gradient', 'Scaled gradient($\lambda=10^{-8}$)']
         methods_test = []
