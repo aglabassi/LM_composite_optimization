@@ -10,7 +10,7 @@ if __name__ == "__main__":
     
     #Matrix
     
-    loss_ord = 2
+    loss_ord = 1
     kappa = 1
     symmetric = True
     identity = False
@@ -23,13 +23,13 @@ if __name__ == "__main__":
     np.random.seed(42)
     r = 5
     if loss_ord == 2:
-        methods= [ 'Gauss-Newton','Gradient descent', 'Precond. gradient', 'Levenberg–Marquard (ours)', 'Scaled gradient', 'Scaled gradient($\lambda=10^{-8}$)']
+        methods= [ 'Gauss-Newton','Gradient descent', 'Precond. gradient', 'Levenberg–Marquardt (ours)', 'Scaled gradient', 'Scaled gradient($\lambda=10^{-8}$)']
         methods_test = []
         methods_all =  methods     
     else:
-        methods = [  'Subgradient descent' , 'Scaled subgradient', 'Gauss-Newton', 'Levenberg–Marquard (ours)']
+        methods = [  'Subgradient descent' , 'Scaled subgradient', 'OPSA($\lambda=10^{-8}$)', 'Gauss-Newton', 'Levenberg–Marquardt (ours)']
         methods_test = []
-        methods_all = [ 'Subgradient descent', 'Scaled subgradient', 'OPSA($\lambda=10^{-3}$)', 'OPSA($\lambda=10^{-8}$)',   'Gauss-Newton', 'Levenberg–Marquard (ours)']
+        methods_all = methods
 
     init_radius_ratio = 0.01
     keys_all = [(r_true, 1), (r_true,100), (r,100), (r,1)]
