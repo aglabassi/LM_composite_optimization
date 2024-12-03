@@ -48,7 +48,7 @@ for trial in range(n_trial):
             
         
         x_star = np.concatenate((np.linspace(1, 1/kappa, r_true), np.zeros(n-r_true)))
-        radius = 0.1*np.linalg.norm(x_star**2)
+        radius = 0.01*np.linalg.norm(x_star**2)
         x0 = generate_point_in_b_epsilon(x_star, np.sqrt(radius))
         print(x0)
         T = 100
@@ -66,8 +66,13 @@ for trial in range(n_trial):
             errs = []
             for i in range(T):
                 damping = np.linalg.norm(x**2 - x_star**2)
-                damping = 1 if np.isnan(damping) or damping > 10**10 else damping
+                
+                if  np.isnan(damping) or damping > 10**2:
+                    errs.append(1)
+                    continue
+                
                 errs.append( damping/ np.linalg.norm(x_star**2) )
+                    
                 jac = 2*np.diag(x)
                 v =  A.T@np.sign(  A@(x**2) - b )
                 gradient = jac.T @ v

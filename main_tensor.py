@@ -167,7 +167,7 @@ n_iter = 1000
 spectral_init = False
 base_dir = os.path.dirname(os.path.abspath(__file__))
 loss_ord = 2
-radius_init = 0.00001
+radius_init = 0.000001
 fix_G = True
 keys = [(2,1), (2,10), (4,1), (4,10)]
 if loss_ord == 1:
@@ -175,10 +175,10 @@ if loss_ord == 1:
 elif loss_ord == 2:
     methods = ['Gradient descent', 'Scaled gradient' ,  'Gauss-Newton', 'Levenberg–Marquardt (ours)']
     
-
+methods_test = []
 
 # Call the function
-run_methods(methods, keys, n, r_true, target_d, identity, device, 
+run_methods(methods_test, keys, n, r_true, target_d, identity, device, 
             stepsize, decay_constant, n_iter, spectral_init, base_dir, 
             loss_ord, radius_init, fix_G)
 

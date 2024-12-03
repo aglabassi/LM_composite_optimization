@@ -180,7 +180,7 @@ def plot_losses_with_styles(losses, stds, r_true, loss_ord, base_dir, problem, k
     }
 
     methods = [ method for idx_m, (method, color) in enumerate(method_colors.items(), start=1)   if method in methods_ ]
-    for method in methods:
+    for idx_, method in enumerate(methods):
 
         color =  method_colors[method] 
 
@@ -209,7 +209,7 @@ def plot_losses_with_styles(losses, stds, r_true, loss_ord, base_dir, problem, k
                 num_dots_adapted //=2
 
             start = 0
-
+            num_dots_adapted = max(1, num_dots_adapted)
             indices = np.arange(start, last_index, num_dots_adapted)
             if k[1] > 1:
                 indices = [ i for idx,i in enumerate(indices) if idx %2 != 0]
@@ -238,10 +238,11 @@ def plot_losses_with_styles(losses, stds, r_true, loss_ord, base_dir, problem, k
                 marker = marker_styles[kappa_label]
 
             # Plotting the mean errors
-            if errs[-1]  == 1: #divergent method
-                diverged_idx = np.where(errs == 1 )[0][0]
+            if errs[-1]  == 1:#divergent method
+                diverged_idx = np.where(errs == errs[-1] )[0][0]
                 tmp = np.where(diverged_idx < indices)[0][0]
                 indices = indices[:tmp+1]
+                errs *= (idx_ + 1)
                 
                 
             ax.plot(
@@ -335,7 +336,7 @@ def plot_losses_with_styles(losses, stds, r_true, loss_ord, base_dir, problem, k
     if  (problem == 'Tensor' and loss_ord == 1):
         height = 0.61 
     elif problem  == 'Hadamard':
-        height = 0.77
+        height = 0.98
     elif (problem == 'CP' and loss_ord == 2):
         height = 1
     elif problem == 'Burer-Monteiro':
@@ -567,7 +568,7 @@ def matrix_recovery(X0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond
         
         
         
-        constant_stepsize = 0.00000001 #if sensing else 0.1 #if sensing else 0.1
+        constant_stepsize = 0.00000001 if n==100 else 0.000001
             
         if method == 'Scaled gradient' or method == 'Scaled subgradient' or method == 'Precond. gradient'  or match_method_pattern(method, prefix='Scaled gradient')[0] or match_method_pattern(method, prefix='OPSA')[0]: #PAPER: Low-Rank Matrix Recovery with Scaled subgradient Methods
         

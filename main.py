@@ -10,7 +10,7 @@ if __name__ == "__main__":
     
     #Matrix
     
-    loss_ord = 2
+    loss_ord = 1
     kappa = 1
     symmetric = True
     identity = False
@@ -19,9 +19,9 @@ if __name__ == "__main__":
     n_trial_div_n_cpu = 1
     #os.system('rm experiments/expbm*.csv') if symmetric else os.system('rm experiments/expasymmetric*.csv') 
     T = 500
-    n = 100
+    n = 20
     np.random.seed(42)
-    r = 5
+    r =5
     if loss_ord == 2:
         methods= [ 'Gauss-Newton','Gradient descent', 'Precond. gradient', 'Levenberg–Marquardt (ours)', 'Scaled gradient', 'Scaled gradient($\lambda=10^{-8}$)']
         methods_test = []
@@ -32,7 +32,7 @@ if __name__ == "__main__":
         methods_all = methods
 
     init_radius_ratio = 0.01
-    keys_all = [(r_true, 1), (r_true,100), (r,100), (r,1)]
+    keys_all = [(r_true,1), (r_true,100), (r,100), (r,1)]
     keys_test = keys_all
     
     d = 20*n * r_true
