@@ -238,6 +238,12 @@ def plot_losses_with_styles(losses, stds, r_true, loss_ord, base_dir, problem, k
                 marker = marker_styles[kappa_label]
 
             # Plotting the mean errors
+            if errs[-1]  == 1: #divergent method
+                diverged_idx = np.where(errs == 1 )[0][0]
+                tmp = np.where(diverged_idx < indices)[0][0]
+                indices = indices[:tmp+1]
+                
+                
             ax.plot(
                 indices,
                 errs[indices],
