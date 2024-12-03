@@ -54,7 +54,7 @@ for trial in range(n_trial):
         T = 100
         A = generate_rip_matrix(m, n)
         b = A@(x_star**2)
-        methods = ['Subgradient descent', 'Gauss-Newton', 'Levenberg–Marquard (ours)']
+        methods = ['Subgradient descent', 'Gauss-Newton', 'Levenberg–Marquardt (ours)']
         base_dir = os.path.dirname(os.path.abspath(__file__))
         
         
@@ -76,7 +76,7 @@ for trial in range(n_trial):
                 if method == 'Subgradient descent':
                     stepsize = np.linalg.norm( A@(x**2) - b, ord=1) / np.sum(gradient**2)
                     x = x - stepsize*gradient
-                elif method in ['Gauss-Newton' , 'Levenberg–Marquard (ours)']:
+                elif method in ['Gauss-Newton' , 'Levenberg–Marquardt (ours)']:
                     stepsize =  np.linalg.norm( A@(x**2) - b, ord=1) / np.sum(v**2)
                     damping = 0 if method == 'Gauss-Newton' else damping
                     try:

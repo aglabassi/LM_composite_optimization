@@ -176,7 +176,7 @@ def plot_losses_with_styles(losses, stds, r_true, loss_ord, base_dir, problem, k
     'OPSA($\lambda=10^{-8}$)': '#94cc1a',
     'Precond. gradient': '#fe6100',
     'Gauss-Newton': '#648fff'  ,
-    'Levenberg–Marquard (ours)': '#785ef0'
+    'Levenberg–Marquardt (ours)': '#785ef0'
     }
 
     methods = [ method for idx_m, (method, color) in enumerate(method_colors.items(), start=1)   if method in methods_ ]
@@ -591,19 +591,19 @@ def matrix_recovery(X0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond
             #gamma = 0.000001
             
                
-        elif method in ['Gauss-Newton', 'Gauss-Newton, $\eta_k = \eta$', 'Levenberg–Marquard (ours)', 'Levenberg–Marquard (ours), $\eta_k = \eta$']:
+        elif method in ['Gauss-Newton', 'Gauss-Newton, $\eta_k = \eta$', 'Levenberg–Marquardt (ours)', 'Levenberg–Marquardt (ours), $\eta_k = \eta$']:
             
             try:
-                damping = np.linalg.norm(c(X) - M_star) if method in ['Levenberg–Marquard (ours)', 'Levenberg–Marquard (ours), $\eta_k = \eta$'] else 0
+                damping = np.linalg.norm(c(X) - M_star) if method in ['Levenberg–Marquardt (ours)', 'Levenberg–Marquardt (ours), $\eta_k = \eta$'] else 0
                 preconditionned_g = compute_preconditionner_applied_to_g_bm(X, g, damping)
             except:
                 preconditionned_g = g #No precondionning 
                 
             preconditionned_G = preconditionned_g.reshape(n,r)
             
-            gamma = (h(c(X)) - 0) / np.dot(v,v) if  method in ['Gauss-Newton', 'Levenberg–Marquard (ours)'] else 2*constant_stepsize
+            gamma = (h(c(X)) - 0) / np.dot(v,v) if  method in ['Gauss-Newton', 'Levenberg–Marquardt (ours)'] else 2*constant_stepsize
             
-            if method ==  'Levenberg–Marquard (ours)':
+            if method ==  'Levenberg–Marquardt (ours)':
                 gamma = (h(c(X)) - 0) / np.dot(v,v)
             elif method == 'Gauss-Newton':
                 gamma = (h(c(X)) - 0) / np.dot(operator(X,g),preconditionned_g)
@@ -800,8 +800,8 @@ def matrix_recovery_assymetric(X0, Y0,Xstar,Ystar, M_star, n_iter, A, A_adj, y_t
        
         
         constant_stepsize = 0.0000001 #if sensing else 0.1
-        if method in ['Gauss-Newton, $\eta_k = \eta$', 'Gauss-Newton', 'Levenberg–Marquard (ours), $\eta_k = \eta$', 'Levenberg–Marquard (ours)']:
-            damping = np.linalg.norm(c(X,Y) - M_star)if method in [ 'Levenberg–Marquard (ours)', 'Levenberg–Marquard (ours), $\eta_k = \eta$'] else 0
+        if method in ['Gauss-Newton, $\eta_k = \eta$', 'Gauss-Newton', 'Levenberg–Marquardt (ours), $\eta_k = \eta$', 'Levenberg–Marquardt (ours)']:
+            damping = np.linalg.norm(c(X,Y) - M_star)if method in [ 'Levenberg–Marquardt (ours)', 'Levenberg–Marquardt (ours), $\eta_k = \eta$'] else 0
             
    
             preconditionned_g_x, preconditionned_g_y = compute_preconditionner_applied_to_g_ass(X, Y, g_x, g_y, damping)  
@@ -814,7 +814,7 @@ def matrix_recovery_assymetric(X0, Y0,Xstar,Ystar, M_star, n_iter, A, A_adj, y_t
                 
                 gamma = (h(c(X,Y)) - 0) / ( np.dot(dir1,preconditionned_g_x)  + np.dot(dir2, preconditionned_g_y))
                 
-            elif method == 'Levenberg–Marquard (ours)':
+            elif method == 'Levenberg–Marquardt (ours)':
                 gamma = (h(c(X,Y)) - 0) / ( np.dot(v,v) )
             else:
                 gamma = constant_stepsize

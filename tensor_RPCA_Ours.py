@@ -121,7 +121,7 @@ def tensor_recovery(method, G_true, factors_true, G0_init, factors0_init, X,Y, m
         
 
         direction = 0
-        damping = dist_to_sol_emb if method == 'Levenberg–Marquard (ours)' else 0
+        damping = dist_to_sol_emb if method == 'Levenberg–Marquardt (ours)' else 0
         if method  == 'Gauss-Newton':
             try:
                 direction = torch.linalg.lstsq( jac_c.T@jac_c,  jac_c.T @ subgradient).solution 
@@ -129,7 +129,7 @@ def tensor_recovery(method, G_true, factors_true, G0_init, factors0_init, X,Y, m
                 direction = jac_c.T @ subgradient
                 
         
-        elif method == 'Levenberg–Marquard (ours)':
+        elif method == 'Levenberg–Marquardt (ours)':
             direction = torch.linalg.solve(jac_c.T@jac_c + (damping)*torch.eye(jac_c.shape[1]).to(device),jac_c.T @ subgradient )
 
         elif method in ['Subgradient descent', 'Gradient descent']:
@@ -141,7 +141,7 @@ def tensor_recovery(method, G_true, factors_true, G0_init, factors0_init, X,Y, m
         if method == 'Gauss-Newton':
             stepsize = (h_c_x - best_error) / (torch.dot(direction, jac_c.T@jac_c@direction ))
             
-        elif method == 'Levenberg–Marquard (ours)':
+        elif method == 'Levenberg–Marquardt (ours)':
             stepsize = (h_c_x - best_error) / (torch.dot(subgradient, subgradient))
         elif method in ['Subgradient descent', 'Gradient descent']:
             stepsize = (h_c_x - best_error) / (torch.dot(jac_c.T @ subgradient, jac_c.T @ subgradient))

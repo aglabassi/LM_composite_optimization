@@ -171,9 +171,9 @@ radius_init = 0.00001
 fix_G = True
 keys = [(2,1), (2,10), (4,1), (4,10)]
 if loss_ord == 1:
-    methods = ['Subgradient descent', 'Gauss-Newton', 'Levenberg–Marquard (ours)']
+    methods = ['Subgradient descent', 'Gauss-Newton', 'Levenberg–Marquardt (ours)']
 elif loss_ord == 2:
-    methods = ['Gradient descent', 'Scaled gradient' ,  'Gauss-Newton', 'Levenberg–Marquard (ours)']
+    methods = ['Gradient descent', 'Scaled gradient' ,  'Gauss-Newton', 'Levenberg–Marquardt (ours)']
     
 
 

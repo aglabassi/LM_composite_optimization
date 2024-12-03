@@ -23,12 +23,12 @@ if __name__ == "__main__":
     np.random.seed(42)
     r = 5
     if loss_ord == 2:
-        methods= [ 'Gauss-Newton','Gradient descent', 'Precond. gradient', 'Levenberg–Marquard (ours)', 'Scaled gradient', 'Scaled gradient($\lambda=10^{-8}$)']
+        methods= [ 'Gauss-Newton','Gradient descent', 'Precond. gradient', 'Levenberg–Marquardt (ours)', 'Scaled gradient', 'Scaled gradient($\lambda=10^{-8}$)']
         methods_all = methods
         methods_test = []
     else:
  
-        methods = [ 'Subgradient descent' , 'OPSA($\lambda=10^{-3}$)', 'OPSA($\lambda=10^{-8}$)', 'Gauss-Newton', 'Levenberg–Marquard (ours)']
+        methods = [ 'Subgradient descent' , 'OPSA($\lambda=10^{-3}$)', 'OPSA($\lambda=10^{-8}$)', 'Gauss-Newton', 'Levenberg–Marquardt (ours)']
             
     init_radius_ratio = 0.001
     keys = [(r_true, 1), (r_true,100), (r,1), (r,100)]
