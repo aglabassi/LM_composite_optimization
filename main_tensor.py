@@ -138,6 +138,7 @@ def run_methods(methods, keys, n, r_true, target_d, identity, device,
             measurement_operator = TensorMeasurementOperator(n, n, n, target_d, identity=identity)
             
             # Initialize G0 and factors0 based on fix_G flag
+            radius_init  = radius_init*torch.linalg.norm(T_true)
             if fix_G:
                 G0 = G.clone()
                 factors0 = parafac(T_true + random_perturbation((n, n, n), radius_init).to(device), rank=r)[1]
@@ -166,7 +167,7 @@ decay_constant = 1 - 0.45 * stepsize
 n_iter = 1000
 spectral_init = False
 base_dir = os.path.dirname(os.path.abspath(__file__))
-loss_ord = 2
+loss_ord = 1
 radius_init = 0.000001
 fix_G = True
 keys = [(2,1), (2,10), (4,1), (4,10)]
