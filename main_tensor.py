@@ -176,7 +176,7 @@ if loss_ord == 1:
 elif loss_ord == 2:
     methods = ['Gradient descent', 'Scaled gradient' ,  'Gauss-Newton', 'Levenberg–Marquardt (ours)']
     
-methods_test = []
+methods_test = methods
 
 # Call the function
 run_methods(methods_test, keys, n, r_true, target_d, identity, device, 
