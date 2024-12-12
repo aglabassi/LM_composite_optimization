@@ -181,62 +181,101 @@ def compute_preconditionner_applied_to_g_cp_sym(X, g, damping, max_iter=100, eps
 
     return x
 
+
+def boot_strap_init(T_star, tol, n, r):
+        
+
+    X  = torch.rand(n,r)
+    
+    measurement_operator = TensorMeasurementOperator(n, n, n, target_d, identity=True)
+    idx = 0
+    for k in range(1000):
+       
+        
+        T  =  c(X)
+        err = torch.norm(T - T_star)
+        err_rel = err/ torch.norm(T_star)
+        print(err_rel)
+       
+        
+        if err_rel <= tol:
+            break 
+        
+        residual = measurement_operator.A( T - T_star )
+        
+        
+        
+
+        subgradient_h = measurement_operator.A_adj( residual/torch.norm(residual) ).reshape(-1) #L2
+        h_c_x =  torch.norm(residual)
+        
+
+        grad = nabla_c_transpose_g(X, subgradient_h.view(n,n,n))
+
+        damping = err
+        preconditioned_grad = compute_preconditionner_applied_to_g_cp_sym(X, grad, damping)
+        
+        stepsize = (h_c_x) / (torch.dot(subgradient_h,subgradient_h))
+       
+        X = X - stepsize * preconditioned_grad
+        idx+=1
+        
+    print('err_rel' + str(err_rel) + ', ' + str(idx))
+    
+    while err_rel <= tol/10:
+        X  += torch.rand(n,r)*0.0000001
+        T = c(X)
+        err_rel = torch.norm(T - T_star)/torch.norm(T_star)
+        print(err_rel)
+
+    return X
+
+
+
 def run_methods(methods_test, keys, n, r_true, target_d, identity, device, n_iter, spectral_init, base_dir, loss_ord, radius_init): 
     
     measurement_operator = TensorMeasurementOperator(n, n, n, target_d, identity=identity)
         
     for key in keys:
+        r, kappa = key
+        
+        Q_u, _ = torch.linalg.qr(torch.rand(n, r_true, device=device, dtype=torch.float64))
+        Q_v, _ = torch.linalg.qr(torch.rand(r_true, r_true, device=device, dtype=torch.float64))
+        
+        # Create singular values as double
+        singular_values = torch.linspace(1.0, 1/kappa, r_true, device=device, dtype=torch.float64)
+        S = torch.diag(singular_values)
+        
+        # Construct X_star in double
+        X_star = Q_u @ S @ Q_v.T
+        T_star = c(X_star)
+
+      
+        X0 = boot_strap_init(T_star, radius_init, n,r)
+        # Print the relative error
+        
         for method in methods:
-            r, kappa = key
-            
-            Q_u, _ = torch.linalg.qr(torch.rand(n, r_true, device=device, dtype=torch.float64))
-            Q_v, _ = torch.linalg.qr(torch.rand(r_true, r_true, device=device, dtype=torch.float64))
-            
-            # Create singular values as double
-            singular_values = torch.linspace(1.0, 1/kappa, r_true, device=device, dtype=torch.float64)
-            S = torch.diag(singular_values)
-            
-            # Construct X_star in double
-            X_star = Q_u @ S @ Q_v.T
-            T_star = c(X_star)
-            
-            # Perturbation in double
-            perturb = torch.rand(n, r, device=device, dtype=torch.float64)
-            perturb = c(perturb)
-            
-            # Scale the perturbation
-            perturb = radius_init * (torch.norm(T_star)) * perturb / (torch.norm(perturb))
-            
-            # Perform symmetric CP via power iteration
-            tmp = symmetric_parafac_power_iteration(T_star + perturb, r)
-            
-            # tmp = (weights, factor)
-            weights, factor = tmp
-            # Absorb weights^(1/3) into factor to have unit weights
-            # Since it's a 3rd order tensor, we take cube root of the weights
-            weights_1_3 = weights**(1.0/3.0)
-            
-            
-            # factor now holds the adjusted factor matrix
-            X = factor*weights_1_3
-            
-            T = sum( weights[l]*torch.kron(torch.kron( factor[:, l ],  factor[:, l ]) ,  factor[:, l ])  for l in range(r))
-            T = T.view(n,n,n)
-            # Print the relative error
+            X = X0.clone()
+          
             
             errs = []
             
             for k in range(n_iter):
+                T  =  c(X)
                 err = torch.norm(T - T_star)
                 rel_err = err/(torch.norm(T_star))
-                if torch.isnan(err):
+                if torch.isnan(err) or rel_err > 1:
                     errs = errs +  [1 for _ in range(n_iter - len(errs)) ]
                     break
+                if rel_err < 10**-13:
+                    errs = errs +  [10**-13 for _ in range(n_iter - len(errs)) ]
+                    break
+                    
                 print(err)      
                 print('---')
                 errs.append(rel_err)
                 
-                T  =  c(X)
+               
                 residual = measurement_operator.A( T - T_star )
                 
                 if loss_ord == 1:
@@ -289,12 +328,12 @@ device = 'cpu'
 spectral_init = False
 base_dir = os.path.dirname(os.path.abspath(__file__))
 loss_ord = 2
-radius_init = 0.0001
+radius_init = 0.00001
 n_iter = 1000
 
 keys = [(2,1), (2,10), (4,1), (4,10)]
 if loss_ord == 1:
-    methods = ['Subgradient descent', 'Gauss-Newton', 'Levenberg–Marquardt (ours)']
+    methods = ['Subgradient descent', 'Gauss-Newton','Levenberg–Marquardt (ours)']
 elif loss_ord == 2:
     methods = ['Gradient descent',  'Gauss-Newton', 'Levenberg–Marquardt (ours)']
 

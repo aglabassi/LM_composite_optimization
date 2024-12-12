@@ -244,7 +244,7 @@ def plot_losses_with_styles(losses, stds, r_true, loss_ord, base_dir, problem, k
                 indices = indices[:tmp+1]
                 errs *= (idx_ + 1)
                 
-                
+            print(indices)
             ax.plot(
                 indices,
                 errs[indices],
@@ -344,7 +344,7 @@ def plot_losses_with_styles(losses, stds, r_true, loss_ord, base_dir, problem, k
     elif problem == 'Asymmetric':
         height = 0.83
     else:
-        height = 0.77
+        height = 0.98
 
     # Methods legend at upper right
     legend1 = ax.legend(
