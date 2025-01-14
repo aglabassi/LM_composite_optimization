@@ -490,146 +490,276 @@ def truncate_svd(matrix, k):
 
 
 
-
-def matrix_recovery(X0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond_number, method, base_dir, trial):
-    
+def matrix_recovery(
+    X0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true,
+    cond_number, method, base_dir, trial, restarted=True
+):
+    """
+    If restarted=False, run the original (non-restarted) method you provided.
+    If restarted=True, run a 'Restarted Levenberg-Marquardt Subgradient Method'.
+    """
+    ###########################################################################
+    # Common definitions
+    ###########################################################################
     def c(x):
-        return x @ x.T 
+        return x @ x.T
 
     def h(M):
-        return (np.linalg.norm(A(M)-y_true,ord=loss_ord)**loss_ord)/loss_ord
-    
-    
+        if loss_ord == 0.5:
+            return np.linalg.norm(A(M)-y_true)
+        return (np.linalg.norm(A(M)-y_true, ord=loss_ord)**loss_ord)/loss_ord
 
-        
-        
     def subdifferential_h(M):
-        
+        """
+        Returns subgradient (or gradient) in vectorized form (dimension n^2).
+        """
         residual = A(M) - y_true
-        
-        transformation_matrix = A.__closure__[0].cell_contents  # Extract the transformation matrix used in A
-        adjoint_A = transformation_matrix.T  # Adjoint (transpose) of the transformation matrix
-        
 
-    
+        # We assume A is a linear operator, e.g. A(M) = transformation_matrix * vec(M).
+        # Using closures/tricks to get the matrix from A:
+        transformation_matrix = A.__closure__[0].cell_contents  
+        adjoint_A = transformation_matrix.T  
+
         subdiff = np.sign(residual) 
         
         if loss_ord == 1:
             v = np.dot(adjoint_A, subdiff)
         elif loss_ord == 2:
             v = np.dot(adjoint_A, residual)
+        elif loss_ord == 0.5:
+            # subgradient scaled by 1/h(M)
+            v = np.dot(adjoint_A, residual) / (h(M))
+        else:
+            # You can extend as needed
+            raise ValueError("Unsupported loss_ord")
 
-        
-
-        return v # n^2 dimension
-
-
-    X = X0.copy()
-    losses = []
+        return v
 
     def operator(X, g):
-        #X is n by r, g is nr 
+        """
+        Provided in your snippet. We keep it as is.
+        X is n-by-r, g is n*r (vectorized).
+        """
         g_mat = g.reshape(X.shape)
-        return (2*g_mat@X.T@X + 2*X@g_mat.T@X).reshape(-1)
-    
-    n,r = X.shape
-    for t in range(n_iter):
-        
-        if t%20 ==0:
-            print("symmetric")
-            print(f'Iteration number :  {t}')
-            print(f'Method           :  {method}')
-            print(f'Cond. number     :  {cond_number}')
-            print(f"r*, r            :  {(r_true, r)}")
-            print(f'h(c(X)) = {"(DIVERGE)" if(np.isnan(h(c(X)) ) or  (h(c(X)) == np.inf) ) else  h(c(X))}')
-            print('---------------------')
+        return (2*g_mat @ X.T @ X + 2*X @ g_mat.T @ X).reshape(-1)
+
+    ###########################################################################
+    # Branch on whether we want the "restarted" version or not
+    ###########################################################################
+    if not restarted:
+        #######################################################################
+        # (A) ORIGINAL NON-RESTARTED VERSION
+        #######################################################################
+        X = X0.copy()
+        losses = []
+
+        n, r = X.shape
+        for t in range(n_iter):
+
+            if t % 20 == 0:
+                print("symmetric")
+                print(f'Iteration number :  {t}')
+                print(f'Method           :  {method}')
+                print(f'Cond. number     :  {cond_number}')
+                print(f"r*, r            :  {(r_true, r)}")
+                val_cX = h(c(X))
+                print(f'h(c(X)) = {"(DIVERGE)" if (np.isnan(val_cX) or val_cX == np.inf ) else val_cX}')
+                print('---------------------')
+
+            val_cX = h(c(X))
+            if np.isnan(val_cX) or val_cX == np.inf or \
+               np.linalg.norm(c(X) - M_star)/np.linalg.norm(M_star) > 1e4:
+                # Indicate divergence in the losses
+                losses += [1]*(n_iter - len(losses))
+                break
+            elif np.linalg.norm(c(X) - M_star)/np.linalg.norm(M_star) <= 1e-14:
+                # Indicate we've basically converged
+                losses += [1e-15]*(n_iter - len(losses))
+                break
+            else:
+                losses.append(np.linalg.norm(c(X) - M_star)/np.linalg.norm(M_star))
+
+            # Subgradient, etc.
+            v = subdifferential_h(c(X))
+            v_mat = v.reshape(X.shape[0], X.shape[0])
+            g = ((v_mat + v_mat.T) @ X).reshape(-1)
+            
+            constant_stepsize = 1e-8 if X.shape[0] == 100 else 1e-6
+
+            # Method logic (scaled subgrad, Gauss-Newton, etc.)
+            if method == 'Scaled gradient' or method == 'Scaled subgradient' \
+               or method == 'Precond. gradient'  \
+               or match_method_pattern(method, prefix='Scaled gradient')[0] \
+               or match_method_pattern(method, prefix='OPSA')[0]:
+                
+                if method in [ 'Scaled gradient', 'Scaled subgradient' ]:
+                    damping = 0
+                elif method == 'Precond. gradient':
+                    damping = np.linalg.norm(c(X) - M_star, ord='fro')
+                elif match_method_pattern(method, prefix='Scaled gradient')[0]:
+                    damping = convert_to_number(match_method_pattern(method, prefix='Scaled gradient')[1])
+                elif match_method_pattern(method, prefix='OPSA')[0]:
+                    damping = convert_to_number(match_method_pattern(method, prefix='OPSA')[1])
+                
+                precondionner_inv = np.linalg.inv(X.T@X + damping*np.eye(r))
+                
+                G = g.reshape(*X.shape) \
+                    if not match_method_pattern(method, prefix='OPSA')[0] \
+                    else (g.reshape(*X.shape) + damping*X)
+
+                preconditionned_G = G @ precondionner_inv
+                aux = G @ sqrtm(precondionner_inv)
+                
+                if method in ['Scaled subgradient'] or match_method_pattern(method, prefix='OPSA')[0]:
+                    gamma = (h(c(X)) - 0) / np.sum(aux*aux)
+                else:
+                    gamma = constant_stepsize
+
+            elif method in ['Gauss-Newton', 'Gauss-Newton, $\\eta_k = \\eta$',
+                            'Levenberg–Marquardt (ours)',
+                            'Levenberg–Marquardt (ours), $\\eta_k = \\eta$']:
+                try:
+                    if method in ['Levenberg–Marquardt (ours)', 'Levenberg–Marquardt (ours), $\\eta_k = \\eta$']:
+                        damping = np.linalg.norm(c(X) - M_star)
+                    else:
+                        damping = 0
+                    preconditionned_g = compute_preconditionner_applied_to_g_bm(X, g, damping)
+                except:
+                    preconditionned_g = g  # fallback
+                
+                preconditionned_G = preconditionned_g.reshape(n, r)
+                
+                if method in ['Gauss-Newton', 'Levenberg–Marquardt (ours)']:
+                    gamma = (h(c(X)) - 0) / np.dot(v, v)
+                else:
+                    gamma = 2*constant_stepsize
+
+                if method == 'Levenberg–Marquardt (ours)':
+                    gamma = (h(c(X)) - 0) / np.dot(v, v)
+                elif method == 'Gauss-Newton':
+                    gamma = (h(c(X)) - 0) / np.dot(operator(X, g), preconditionned_g)
+
+            elif method in ['Subgradient descent', 'Gradient descent', 'Polyak Subgradient']:
+                preconditionned_G = g.reshape(n, r)
+                gamma = (h(c(X)) - 0) / np.sum(g*g)
+
+            else:
+                raise NotImplementedError
+
+            # Gradient-like update
+            X = X - gamma*preconditionned_G
+
+        # Save results
+        file_name = f'experiments/expbm_{method}_l_{loss_ord}_r*={r_true}_r={X.shape[1]}_condn={cond_number}_trial_{trial}.csv'
+        full_path = os.path.join(base_dir, file_name)
+        np.savetxt(full_path, losses, delimiter=',') 
+        return losses
+
+    else:
 
         
-        if np.isnan(h(c(X)) ) or h(c(X)) == np.inf or h(c(X)) > 10**5:
-            losses =  losses + [ 1 ] * (n_iter - len(losses)) #indicate divergence
-            break
-        elif np.linalg.norm(c(X) - M_star)/np.linalg.norm(M_star) <= 10**-14:
-            losses =  losses + [ 10**-15 ] * (n_iter - len(losses)) 
-            break
-        
-        else:
-            losses.append(np.linalg.norm(c(X) - M_star)/np.linalg.norm(M_star))
-        
-        
-        
-        v = subdifferential_h(c(X))
-        
-        
-        v_mat = v.reshape(X.shape[0], X.shape[0])
-        
-        g = (( v_mat + v_mat.T )@X).reshape(-1)
+        X = X0.copy()
+        losses = []
 
-        
-        
-        
-        
-        constant_stepsize = 0.00000001 if n==100 else 0.000001
-            
-        if method == 'Scaled gradient' or method == 'Scaled subgradient' or method == 'Precond. gradient'  or match_method_pattern(method, prefix='Scaled gradient')[0] or match_method_pattern(method, prefix='OPSA')[0]: #PAPER: Low-Rank Matrix Recovery with Scaled subgradient Methods
-        
-           
-            if method in [ 'Scaled gradient', 'Scaled subgradient' ]:
-                damping = 0
-            elif method == 'Precond. gradient':
-                damping = np.linalg.norm(c(X) - M_star, ord='fro')
-            elif match_method_pattern(method, prefix='Scaled gradient')[0]:
-                damping = convert_to_number(match_method_pattern(method, prefix='Scaled gradient')[1])
-            elif match_method_pattern(method, prefix='OPSA')[0]:
-                damping = convert_to_number(match_method_pattern(method, prefix='OPSA')[1])
-        
-            precondionner_inv =   np.linalg.inv( X.T@X + damping* np.eye(r) )  #(np.inv()) for Scaled gradient
-            
-            G = g.reshape(*X.shape) if not  match_method_pattern(method, prefix='OPSA')[0] else (g.reshape(*X.shape) + damping*X) 
-            preconditionned_G = G @ precondionner_inv
-            aux = G @ sqrtm(precondionner_inv)
-            gamma = (h(c(X)) - 0) / (np.sum(np.multiply(aux,aux)))  if method in ['Scaled subgradient'] or match_method_pattern(method, prefix='OPSA')[0]else constant_stepsize
-            #constant 
-            #gamma = 0.000001
-            
-               
-        elif method in ['Gauss-Newton', 'Gauss-Newton, $\eta_k = \eta$', 'Levenberg–Marquardt (ours)', 'Levenberg–Marquardt (ours), $\eta_k = \eta$']:
-            
-            try:
-                damping = np.linalg.norm(c(X) - M_star) if method in ['Levenberg–Marquardt (ours)', 'Levenberg–Marquardt (ours), $\eta_k = \eta$'] else 0
-                preconditionned_g = compute_preconditionner_applied_to_g_bm(X, g, damping)
-            except:
-                preconditionned_g = g #No precondionning 
-                
-            preconditionned_G = preconditionned_g.reshape(n,r)
-            
-            gamma = (h(c(X)) - 0) / np.dot(v,v) if  method in ['Gauss-Newton', 'Levenberg–Marquardt (ours)'] else 2*constant_stepsize
-            
-            if method ==  'Levenberg–Marquardt (ours)':
-                gamma = (h(c(X)) - 0) / np.dot(v,v)
-            elif method == 'Gauss-Newton':
-                gamma = (h(c(X)) - 0) / np.dot(operator(X,g),preconditionned_g)
-                
-                
-                
-            
-            
-        elif method == 'Subgradient descent' or method == 'Gradient descent':
-            preconditionned_G  = g.reshape(n,r)
-            gamma = (h(c(X)) - 0) / np.sum(np.multiply(g,g))
-            
+        # For the restarted LM, we typically define:
+        T = 5
+        m = 10
+        lambdas = [2**(-i) for i in range(m)]  # default lambda_j
+        underline_h = -2  # or maybe some known lower bound on h(F(x))?
 
-        else:
-            raise NotImplementedError
+        num_small_damping = 0
+        n, r = X.shape
+
+        for k in range(n_iter):
+            # --- Some printing
+            if k % 20 == 0:
+                print("symmetric - RESTARTED")
+                print(f'Outer iteration :  {k}')
+                print(f'Method          :  {method} (Restarted LM = True)')
+                print(f'Cond. number    :  {cond_number}')
+                print(f"r*, r           :  {(r_true, r)}")
+                val_cX = h(c(X))
+                print(f'h(c(X)) = {"(DIVERGE)" if (np.isnan(val_cX) or val_cX == np.inf ) else val_cX}')
+                print('---------------------')
+
+            # Check divergence or near-convergence
+            val_cX = h(c(X))
+            if np.isnan(val_cX) or val_cX == np.inf or \
+               np.linalg.norm(c(X) - M_star)/np.linalg.norm(M_star) > 1e4:
+                losses += [1]*(n_iter - len(losses))
+                break
+            elif np.linalg.norm(c(X) - M_star)/np.linalg.norm(M_star) <= 1e-14:
+                losses += [1e-15]*(n_iter - len(losses))
+                break
+            else:
+                losses.append(np.linalg.norm(c(X) - M_star)/np.linalg.norm(M_star))
+
+            # For each damping, we do T sub-iterations in parallel, store them
+            # We’ll keep the best among them
+            X_candidates = []
+            h_values = []
+            for j in range(m):
+                # Start each sub-iteration from the same X
+                X_j = X.copy()
+                for t_sub in range(T):
+                    # Subgradient of h(c(X_j))
+                    v = subdifferential_h(c(X_j))
+                    v_mat = v.reshape(n, n)
+                    g = ((v_mat + v_mat.T) @ X_j).reshape(-1)
+
+                    # Step size gamma_{k,t}^{(j)}
+                    # from your algorithm: gamma = [h(c(X_j)) - underline_h] / [2 * ||v||^2]
+                    # we compute ||v||^2 in the vector sense
+                    v_norm_sq = np.dot(v, v)
+             
+                    gamma = (h(c(X_j)) - underline_h) / ( v_norm_sq)
+                    print(gamma)
+                    print('------------')
+
+                    # The LM update: ( ∇c(X_j)^T ∇c(X_j) + λ_j I )^{-1} ...
+                    # In your matrix factorization case c(X)=X@X.T => Jacobian wrt X is more complicated.
+                    # We'll do a simpler "substitute" approach akin to your existing 'Gauss-Newton' code:
+                    damping = lambdas[j]
+                    #damping = np.linalg.norm(c(X_j) - M_star)
+
+                    preconditionned_g = compute_preconditionner_applied_to_g_bm(X_j, g, damping)
+
+                    G_mat = preconditionned_g.reshape(n, r)
+                    X_j = X_j - gamma * G_mat
+
+                # Store final X_j after T sub-iterations
+                X_candidates.append(X_j)
+                h_values.append(h(c(X_j)))
+
+            # Among all j, pick the one that yields the min h(c(X_j))
+            j_star = int(np.argmin(h_values))
+            X_best = X_candidates[j_star]
+
+            # Update X
+            X = X_best
+
+            # Update underline_h to midpoint
+            underline_h = (underline_h + h(c(X))) / 2.0
+
+            # Check if we used a damping that is "small" or "large" 
+            # (the median of lambdas is lambdas[m//2] if lambdas is sorted).
+            sorted_lambdas = sorted(lambdas)
+            median_lambda = sorted_lambdas[m // 2]
+            used_lambda = lambdas[j_star]
+
+            if used_lambda <= median_lambda:
+                num_small_damping += 1
+
+            # If num_small_damping >= 5 => halve all lambdas
+            if num_small_damping >= 5:
+                lambdas = [lam / 2.0 for lam in lambdas]
+                num_small_damping = 0
         
-        X = X - gamma*preconditionned_G
-    
-    file_name = f'experiments/expbm_{method}_l_{loss_ord}_r*={r_true}_r={X.shape[1]}_condn={cond_number}_trial_{trial}.csv'
-    full_path = os.path.join(base_dir, file_name)
-    np.savetxt(full_path, losses, delimiter=',') 
-    full_path = os.path.join(base_dir, file_name)
-    
-    
-    return losses
+        # After finishing all outer loops, save results
+        file_name =  f'experiments/expbm_{method}_l_{loss_ord}_r*={r_true}_r={X.shape[1]}_condn={cond_number}_trial_{trial}.csv'
+        full_path = os.path.join(base_dir, file_name)
+        np.savetxt(full_path, losses, delimiter=',')
+        return losses
 
 
 def compute_preconditionner_applied_to_g_bm(X,g, damping, max_iter=100, epsilon = 10**-13):
