@@ -232,10 +232,10 @@ def boot_strap_init(T_star, tol, n, r):
 
 
 
-def run_methods(methods_test, keys, n, r_true, target_d, identity, device, n_iter, spectral_init, base_dir, loss_ord, radius_init): 
+def run_methods(methods_test, keys, n, r_true, target_d, identity, device, n_iter, spectral_init, base_dir, loss_ord, radius_init, corr_level=0, q=0.9, lambda_ = 0.0001, gamma = 0.001): 
     
     measurement_operator = TensorMeasurementOperator(n, n, n, target_d, identity=identity)
-        
+
     for key in keys:
         outputs = dict()    
         r, kappa = key
@@ -250,6 +250,16 @@ def run_methods(methods_test, keys, n, r_true, target_d, identity, device, n_ite
         # Construct X_star in double
         X_star = Q_u @ S @ Q_v.T
         T_star = c(X_star)
+        
+        y_true =  measurement_operator.A(T_star )
+        num_ones = int(y_true.shape[0]*corr_level)
+        mask_indices = np.random.choice(y_true.shape[0], size=num_ones, replace=False)
+        mask = np.zeros(y_true.shape[0])
+        mask[mask_indices] = 1 
+        
+        y_true = y_true + np.linalg.norm(y_true)*np.random.normal(size=y_true.shape[0])*mask
+  
+ 
 
       
         X0 = boot_strap_init(T_star, radius_init, n,r)
@@ -277,7 +287,7 @@ def run_methods(methods_test, keys, n, r_true, target_d, identity, device, n_ite
                 errs.append(rel_err)
                 
                
-                residual = measurement_operator.A( T - T_star )
+                residual = measurement_operator.A( T) - y_true
                 
                 if loss_ord == 1:
                     subgradient_h = measurement_operator.A_adj( torch.sign( residual ) ).reshape(-1) #L1
@@ -291,10 +301,9 @@ def run_methods(methods_test, keys, n, r_true, target_d, identity, device, n_ite
 
                 if method in  ['Gradient descent', 'Subgradient descent']:
                     stepsize = h_c_x/(torch.norm(grad)**2)
-                    
-                    X = X - stepsize * grad
+                    preconditioned_grad = grad
                 else:
-                    damping = 0 if method == 'Gauss-Newton' else err
+                    damping = 0 if method == 'Gauss-Newton' else (lambda_*q**k)
                     preconditioned_grad = compute_preconditionner_applied_to_g_cp_sym(X, grad, damping)
                     
                     if method == 'Gauss-Newton':
@@ -304,8 +313,9 @@ def run_methods(methods_test, keys, n, r_true, target_d, identity, device, n_ite
                         stepsize = (h_c_x) / denom
                     elif method == 'Levenberg–Marquardt (ours)':
                         stepsize = (h_c_x) / (torch.dot(subgradient_h,subgradient_h))
-                   
-                    X = X - stepsize * preconditioned_grad
+                
+                stepsize = gamma*q**(k) #geometric stepsize
+                X = X - stepsize * preconditioned_grad
                     
                     
                     
