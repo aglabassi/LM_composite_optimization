@@ -41,7 +41,8 @@ def collect_compute_mean(keys, loss_ord, r_true, res, methods, problem):
 
 
 
-def trial_execution_matrix(trials, n, r_true, d, keys, init_radius_ratio, T, loss_ord, base_dir, methods, symmetric=True, identity=False, corr_factor=0):
+def trial_execution_matrix(trials, n, r_true, d, keys, init_radius_ratio, T, loss_ord, base_dir, methods, symmetric=True, identity=False, corr_factor=0,
+                           gamma=0.00001, lambda_=0.1, q=0.8):
     
     for trial in trials:
         A, A_adj = create_rip_transform(n, d, identity)
@@ -87,9 +88,13 @@ def trial_execution_matrix(trials, n, r_true, d, keys, init_radius_ratio, T, los
             outputs = dict()
             for method in methods:
                 if symmetric:
-                    losses = matrix_recovery(X0, M_true, T, A, A_adj, y_true, loss_ord, r_true, cond_number, method, base_dir, trial)
+                    losses = matrix_recovery(X0, M_true, T, A, A_adj, y_true, loss_ord, 
+                                             r_true, cond_number, method, base_dir, trial, gamma_init=gamma, 
+                                             damping_init=lambda_, q=q)
                 else:
-                    losses = matrix_recovery_assymetric(X0, Y0, X_true, Y_true, M_true, T, A, A_adj, y_true, loss_ord, r_true, cond_number, method, base_dir, trial)
+                    losses = matrix_recovery_assymetric(X0, Y0, X_true, Y_true, M_true, T, A, A_adj, y_true, loss_ord, 
+                                                        r_true, cond_number, method, base_dir, trial, gamma_init=gamma, 
+                                                        damping_init=lambda_, q=q)
                 outputs[method]= losses 
     return outputs
 
@@ -587,7 +592,7 @@ def truncate_svd(matrix, k):
 
 def matrix_recovery(
     X0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true,
-    cond_number, method, base_dir, trial, gamma_init=0.00001, damping_init=0.1, q=0.9 ):
+    cond_number, method, base_dir, trial, gamma_init=0.00001, damping_init=0.1, q=0.8 ):
     """
     If restarted=False, run the original (non-restarted) method you provided.
     If restarted=True, run a 'Restarted Levenberg-Marquardt Subgradient Method'.
@@ -706,25 +711,16 @@ def matrix_recovery(
             else:
                 gamma = constant_stepsize
 
-        elif method in ['Gauss-Newton', 'Gauss-Newton, $\\eta_k = \\eta$',
-                        'Levenberg–Marquardt (ours)',
-                        'Levenberg–Marquardt (ours), $\\eta_k = \\eta$']:
-            try:
-                if method in ['Levenberg–Marquardt (ours)', 'Levenberg–Marquardt (ours), $\\eta_k = \\eta$']:
-                    damping = np.sqrt( h(c(X))) /4000 if loss_ord == 2 else h(c(X))/100000
-                    damping = damping_init*q**t #decaying parameter
-                else:
-                    damping = 0
-                preconditionned_g = compute_preconditionner_applied_to_g_bm(X, g, damping)
-            except:
-                preconditionned_g = g  # fallback
-            
-            preconditionned_G = preconditionned_g.reshape(n, r)
-            
-            if method in ['Gauss-Newton', 'Levenberg–Marquardt (ours)']:
-                gamma = (h(c(X)) - 0) / np.dot(v, v)
+        elif method in ['Gauss-Newton', 'Levenberg–Marquardt (ours)']:
+
+            if method == 'Levenberg–Marquardt (ours)':
+                damping = np.sqrt( h(c(X))) /4000 if loss_ord == 2 else h(c(X))/100000
+                damping = damping_init*q**t #decaying parameter
             else:
-                gamma = 2*constant_stepsize
+                damping = 0
+            preconditionned_g = compute_preconditionner_applied_to_g_bm(X, g, damping)
+
+            preconditionned_G = preconditionned_g.reshape(n, r)
 
             if method == 'Levenberg–Marquardt (ours)':
                 gamma = (h(c(X)) - 0) / np.dot(v, v)
@@ -844,7 +840,8 @@ def compute_preconditionner_applied_to_g_ass(X,Y, gx, gy, damping, max_iter=100,
 
 
 
-def matrix_recovery_assymetric(X0, Y0,Xstar,Ystar, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond_number, method, base_dir, trial):
+def matrix_recovery_assymetric(X0, Y0,Xstar,Ystar, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true, cond_number, method, base_dir, trial, 
+                               gamma_init=0.001, damping_init=0.0001, q=0.8):
     
     def c(X,Y):
         return X @ Y.T 
@@ -920,9 +917,9 @@ def matrix_recovery_assymetric(X0, Y0,Xstar,Ystar, M_star, n_iter, A, A_adj, y_t
        
         
         constant_stepsize = 0.0000001 #if sensing else 0.1
-        if method in ['Gauss-Newton, $\eta_k = \eta$', 'Gauss-Newton', 'Levenberg–Marquardt (ours), $\eta_k = \eta$', 'Levenberg–Marquardt (ours)']:
-            damping = (np.sqrt( h(c(X,Y))) /4000 if loss_ord == 2 else h(c(X,Y))/100000) if method in [ 'Levenberg–Marquardt (ours)', 'Levenberg–Marquardt (ours), $\eta_k = \eta$'] else 0
-            
+        if method in [ 'Gauss-Newton', 'Levenberg–Marquardt (ours)']:
+            damping = (np.sqrt( h(c(X,Y))) /4000 if loss_ord == 2 else h(c(X,Y))/100000) if method == 'Levenberg–Marquardt (ours)' else 0
+            damping = damping_init*q**t if method == 'Levenberg–Marquardt (ours)' else 0
    
             preconditionned_g_x, preconditionned_g_y = compute_preconditionner_applied_to_g_ass(X, Y, g_x, g_y, damping)  
             preconditionned_G_x = preconditionned_g_x.reshape(*X.shape)
@@ -975,7 +972,7 @@ def matrix_recovery_assymetric(X0, Y0,Xstar,Ystar, M_star, n_iter, A, A_adj, y_t
         else:
 
             raise NotImplementedError
-        
+        gamma = gamma_init*q**t
         X = X - gamma*preconditionned_G_x
         Y = Y - gamma*preconditionned_G_y
         
