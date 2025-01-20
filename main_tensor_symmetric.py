@@ -237,6 +237,7 @@ def run_methods(methods_test, keys, n, r_true, target_d, identity, device, n_ite
     measurement_operator = TensorMeasurementOperator(n, n, n, target_d, identity=identity)
         
     for key in keys:
+        outputs = dict()    
         r, kappa = key
         
         Q_u, _ = torch.linalg.qr(torch.rand(n, r_true, device=device, dtype=torch.float64))
@@ -315,7 +316,8 @@ def run_methods(methods_test, keys, n, r_true, target_d, identity, device, n_ite
             full_path = os.path.join(base_dir, file_name)
             np.savetxt(full_path, np.array(errs), delimiter=',') 
             full_path = os.path.join(base_dir, file_name)
-
+            outputs[method] = errs
+    return outputs
                 
         
         
