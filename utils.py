@@ -405,7 +405,8 @@ def plot_transition_heatmap(
     d_trials: list,
     n: int,
     base_dir: str,
-    problem: str = 'TransitionPlot'
+    problem: str = 'TransitionPlot',
+    max_corr:float =0.5
 ):
     """
     Plots one heatmap for each method stored in success_matrixes 
@@ -450,16 +451,16 @@ def plot_transition_heatmap(
             interpolation='nearest',
             vmin=vmin,
             vmax=vmax,
-            extent=(0, 0.5, 0, len(d_trials))
+            extent=(0, max_corr, 0, len(d_trials))
         )
 
        # Major ticks at [0, 0.1, 0.2, 0.3, 0.4, 0.5]
-        major_ticks = [0, 0.1, 0.2, 0.3, 0.4, 0.5]
+        major_ticks = np.arange(0, max_corr+0.01, 0.1)
         ax.set_xticks(major_ticks)
         ax.set_xticklabels([f"{val:.1f}" for val in major_ticks])
 
         # Minor ticks every 0.02 in [0..0.5], excluding major ticks
-        all_ticks = np.arange(0, 0.52, 0.02)
+        all_ticks = np.arange(0, max_corr+0.02, 0.02)
         minor_ticks = [t for t in all_ticks if t not in major_ticks]
         ax.set_xticks(minor_ticks, minor=True)
 
