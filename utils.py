@@ -42,7 +42,7 @@ def collect_compute_mean(keys, loss_ord, r_true, res, methods, problem):
 
 
 def trial_execution_matrix(trials, n, r_true, d, keys, init_radius_ratio, T, loss_ord, base_dir, methods, symmetric=True, identity=False, corr_factor=0,
-                           gamma=0.00001, lambda_=0.1, q=0.8):
+                           gamma=10**-8, lambda_=0.00001, q=0.9):
     
     for trial in trials:
         A, A_adj = create_rip_transform(n, d, identity)
@@ -445,7 +445,7 @@ def plot_transition_heatmap(
         # Show the heatmap
         im = ax.imshow(
             success_matrix,
-            cmap='Purples',
+            cmap='Greys_r',
             origin='lower',
             aspect='auto',
             interpolation='nearest',
