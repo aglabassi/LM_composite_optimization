@@ -458,9 +458,9 @@ def plot_transition_heatmap(
         major_ticks = np.arange(0, max_corr+0.01, 0.1)
         ax.set_xticks(major_ticks)
         ax.set_xticklabels([f"{val:.1f}" for val in major_ticks])
-
+        ax.invert_yaxis()
         # Minor ticks every 0.02 in [0..0.5], excluding major ticks
-        all_ticks = np.arange(0, max_corr+0.02, 0.02)
+        all_ticks = np.arange(0, max_corr+0.025, 0.025)
         minor_ticks = [t for t in all_ticks if t not in major_ticks]
         ax.set_xticks(minor_ticks, minor=True)
 
