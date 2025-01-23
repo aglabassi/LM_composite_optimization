@@ -42,7 +42,7 @@ mpl.rcParams['mathtext.fontset'] = 'stix'
 mpl.rcParams['font.size'] = font_size
 
 
-def plot_results(to_be_plotted_, corr_level, q, r_test, c, xy_axis_max, gammas, lambdas, font_size, rel_error_exp):
+def plot_results(to_be_plotted_, corr_level, q, r_test, c, xy_axis_max, gammas, lambdas, font_size, rel_error_exp, problem):
     fig = plt.figure(figsize=(14, 12))
     ax = fig.add_subplot(111, projection='3d')
 
@@ -126,7 +126,7 @@ def plot_results(to_be_plotted_, corr_level, q, r_test, c, xy_axis_max, gammas, 
 
     plt.tight_layout()
     base_dir = './exp2'
-    save_path = os.path.join(base_dir, f"plot_{q}_{corr_level}_{r_test}_{c}.pdf")
+    save_path = os.path.join(base_dir, f"plot_{problem}_{q}_{corr_level}_{r_test}_{c}.pdf")
     plt.savefig(save_path, format='pdf')
     print(f"Figure saved to: {save_path}")
     plt.show()
@@ -140,7 +140,7 @@ rel_init_start = 10**-3
 rel_error_exp = 8
 rel_epsilon_stop = 10**(-1*rel_error_exp)
 tests = [ (r_true,1), (r,10)] 
-problems =  [ 'Burer-Monteiro Matrix Sensing']
+problems =  [ 'Burer-Monteiro Matrix Sensing'] #keep only one
 methods = ['Subgradient descent','Gauss-Newton', 'Levenberg–Marquardt (ours)']
 corruption_levels = [0]
 qs = [0.97, 0.98, 0.99]
@@ -197,11 +197,7 @@ if run:
                         last_indexes[method].append(last_index)
                         
                 for method in methods:
-                    # Calculate median and percentiles
-                    if method == 'Subgradient descent':
-                        median_last_index = 0
-                    else:
-                        median_last_index = np.median(last_indexes[method])
+                    median_last_index = np.median(last_indexes[method])
                     shaded = np.percentile(last_indexes[method], [5, 95])
                     to_be_plotted[problem][method][i, j] = (median_last_index, tuple(shaded))
                         
@@ -212,5 +208,5 @@ if run:
 for corr_level, (r_test, c), q in product(corruption_levels, tests, qs):
     for problem, method  in product(problems, methods):
         to_be_plotted = load(f'exp2/to_be_plotted_{problem}_{corr_level}_{r_test}_{c}.pkl')     
-        plot_results(to_be_plotted, corr_level, q, r_test, c, xy_axis_max, gammas, lambdas, font_size, rel_error_exp)
+        plot_results(to_be_plotted, corr_level, q, r_test, c, xy_axis_max, gammas, lambdas, font_size, rel_error_exp, problem)
     
