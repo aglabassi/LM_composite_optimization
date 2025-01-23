@@ -42,11 +42,24 @@ mpl.rcParams['mathtext.fontset'] = 'stix'
 mpl.rcParams['font.size'] = font_size
 
 
-def plot_results(to_be_plotted, corr_level, q, r_test, c, xy_axis_max, gammas, lambdas, font_size, rel_error_exp):
+def plot_results(to_be_plotted_, corr_level, q, r_test, c, xy_axis_max, gammas, lambdas, font_size, rel_error_exp):
     fig = plt.figure(figsize=(14, 12))
     ax = fig.add_subplot(111, projection='3d')
 
-    colors = ['#785ef0'] * len(to_be_plotted)
+        
+    method_colors = {
+    'Subgradient descent': '#dc267f',
+    'Gradient descent': '#dc267f',  # Same color as 'Subgradient descent'
+    'Scaled gradient': '#ffb000',
+    'Scaled gradient($\lambda=10^{-3}$)': '#ffa800',
+    'Scaled gradient($\lambda=10^{-8}$)': '#CD853F',
+    'Scaled subgradient': '#ffaf00',  # Same color as 'Scaled gradient'
+    'OPSA($\lambda=10^{-3}$)': '#97e60d',
+    'OPSA($\lambda=10^{-8}$)': '#94cc1a',
+    'Precond. gradient': '#fe6100',
+    'Gauss-Newton': '#648fff'  ,
+    'Levenberg–Marquardt (ours)': '#785ef0'
+    }
 
     Xvals = np.arange(0, xy_axis_max)
     Yvals = np.arange(0, xy_axis_max)
@@ -54,7 +67,10 @@ def plot_results(to_be_plotted, corr_level, q, r_test, c, xy_axis_max, gammas, l
 
     legend_elements = []
 
-    for idx, (problem, data) in enumerate(to_be_plotted.items()):
+    for method in to_be_plotted_.keys():
+        data = to_be_plotted_[method]
+        color = method_colors[method]
+     
         median_grid = np.zeros((xy_axis_max, xy_axis_max))
 
         for i in range(xy_axis_max):
@@ -66,18 +82,18 @@ def plot_results(to_be_plotted, corr_level, q, r_test, c, xy_axis_max, gammas, l
                     Xgrid[i, j],
                     Ygrid[i, j],
                     median_val,
-                    color=colors[idx],
+                    color=color,
                     s=40
                 )
 
         surf = ax.plot_surface(
             Xgrid, Ygrid, median_grid,
-            color=colors[idx],
+            color=color,
             alpha=0.6,
             edgecolor='none'
         )
 
-        legend_elements.append(Patch(facecolor=colors[idx], label=problem))
+        legend_elements.append(Patch(facecolor=color, label=method))
 
     ax.set_xticks(Xvals)
     ax.set_yticks(Yvals)
@@ -97,6 +113,16 @@ def plot_results(to_be_plotted, corr_level, q, r_test, c, xy_axis_max, gammas, l
     )
 
     ax.set_title(f"Decay Parameter q={q}", fontsize=font_size)
+    
+    plt.legend(
+    handles=legend_elements,
+    loc='upper right',  # Position the legend
+    bbox_to_anchor=(1.25, 1),  # Move it outside the plot
+    fontsize=font_size // 2,
+    title="Methods",  # Optional title for the legend
+    title_fontsize=font_size // 2
+    )
+
 
     plt.tight_layout()
     base_dir = './exp2'
@@ -106,7 +132,7 @@ def plot_results(to_be_plotted, corr_level, q, r_test, c, xy_axis_max, gammas, l
     plt.show()
     
     
-run = False
+run = True
 n=10
 r_true = 2
 r = 5
@@ -115,6 +141,7 @@ rel_error_exp = 8
 rel_epsilon_stop = 10**(-1*rel_error_exp)
 tests = [ (r_true,1), (r,10)] 
 problems =  [ 'Burer-Monteiro Matrix Sensing']
+methods = ['Subgradient descent','Gauss-Newton', 'Levenberg–Marquardt (ours)']
 corruption_levels = [0]
 qs = [0.97, 0.98, 0.99]
 xy_axis_max = 2
@@ -127,56 +154,63 @@ n_trial = 1
 if run:
     for corr_level, (r_test, c), q in product(corruption_levels, tests, qs):
         d = 10 * n * r_true if r_test == r_true else 20 * n * r_true
-        to_be_plotted = {problem: np.zeros((xy_axis_max, xy_axis_max), dtype=object) for problem in problems}
+        to_be_plotted = dict( (problem, dict( (method,np.zeros((xy_axis_max, xy_axis_max), dtype=object)) for method in methods)) for problem in problems )
     
         for problem in problems:
             for i, j in product(range(xy_axis_max), range(xy_axis_max)):
-                last_indexes = []
+                last_indexes = dict(  (method, [] ) for method in methods)
     
                 for _ in range(n_trial):
                     # Generate losses depending on the problem
                     if problem == 'Burer-Monteiro Matrix Sensing':
-                        losses = trial_execution_matrix(
+                        losses_ = trial_execution_matrix(
                             range(1), n, r_true, d, [(r_test, c)],
                             rel_init_start, K, 1, "./",
-                            ['Levenberg–Marquardt (ours)'],
+                            methods,
                             corr_factor=corr_level, q=q,
                             gamma=gammas[j], lambda_=lambdas[i]
-                        )['Levenberg–Marquardt (ours)']
+                        )
     
                     elif problem == 'Assymetric Matrix Sensing':
-                        losses = trial_execution_matrix(
+                        losses_ = trial_execution_matrix(
                             range(1), n, r_true, d, [(r_test, c)],
                             rel_init_start, K, 1, "./",
-                            ['Levenberg–Marquardt (ours)'],
+                            methods,
                             symmetric=False, corr_factor=corr_level, q=q,
                             gamma=gammas[j], lambda_=lambdas[i]
-                        )['Levenberg–Marquardt (ours)']
+                        )
     
                     elif problem == 'Symmetric Tensor Sensing':
-                        losses = run_methods(
-                            ['Levenberg–Marquardt (ours)'],
+                        losses_ = run_methods(
+                            methods,
                             [(r_test, c)], n, r_true, d, False, 'cpu',
                             K, False, './', 1, rel_init_start,
                             corr_level=corr_level, q=q,
                             gamma=gammas[j], lambda_=lambdas[i]
-                        )['Levenberg–Marquardt (ours)']
-    
-                    # Find the first iteration index where losses < rel_epsilon_stop
-                    idx = np.where(np.array(losses) < rel_epsilon_stop)[0]
-                    last_index = idx[0] if len(idx) > 0 else K
-                    last_indexes.append(last_index)
-    
-                # Calculate median and percentiles
-                median_last_index = np.median(last_indexes)
-                shaded = np.percentile(last_indexes, [5, 95])
-                to_be_plotted[problem][i, j] = (median_last_index, tuple(shaded))
-            save(to_be_plotted, f'exp2/to_be_plotted_{problem}_{corr_level}_{r_test}_{c}.pkl')
+                        )
+                    
+                    for method in methods:
+                        losses = losses_[method]
+                        # Find the first iteration index where losses < rel_epsilon_stop
+                        idx = np.where(np.array(losses) < rel_epsilon_stop)[0]
+                        last_index = idx[0] if len(idx) > 0 else K
+                        last_indexes[method].append(last_index)
+                        
+                for method in methods:
+                    # Calculate median and percentiles
+                    if method == 'Subgradient descent':
+                        median_last_index = 0
+                    else:
+                        median_last_index = np.median(last_indexes[method])
+                    shaded = np.percentile(last_indexes[method], [5, 95])
+                    to_be_plotted[problem][method][i, j] = (median_last_index, tuple(shaded))
+                        
+            save(to_be_plotted[problem], f'exp2/to_be_plotted_{problem}_{corr_level}_{r_test}_{c}.pkl')
 
 # Call the plotting function
 
 for corr_level, (r_test, c), q in product(corruption_levels, tests, qs):
-    for problem  in problems:
+    for problem, method  in product(problems, methods):
         to_be_plotted = load(f'exp2/to_be_plotted_{problem}_{corr_level}_{r_test}_{c}.pkl')     
         plot_results(to_be_plotted, corr_level, q, r_test, c, xy_axis_max, gammas, lambdas, font_size, rel_error_exp)
     
