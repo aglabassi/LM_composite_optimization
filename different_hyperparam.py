@@ -42,124 +42,97 @@ mpl.rcParams['mathtext.fontset'] = 'stix'
 mpl.rcParams['font.size'] = font_size
 
 
-def plot_results(to_be_plotted_, corr_level, q, r_test, c, xy_axis_max, gammas, lambdas, font_size, rel_error_exp, problem):
-    fig = plt.figure(figsize=(14, 12))
-    ax = fig.add_subplot(111, projection='3d')
+import matplotlib.pyplot as plt
+from matplotlib.patches import Patch
+import numpy as np
 
-        
+def plot_results(to_be_plotted_, corr_level, q, r_test, c, gammas, lambdas, font_size, rel_error_exp, problem):
+   
     method_colors = {
-    'Subgradient descent': '#dc267f',
-    'Gradient descent': '#dc267f',  # Same color as 'Subgradient descent'
-    'Scaled gradient': '#ffb000',
-    'Scaled gradient($\lambda=10^{-3}$)': '#ffa800',
-    'Scaled gradient($\lambda=10^{-8}$)': '#CD853F',
-    'Scaled subgradient': '#ffaf00',  # Same color as 'Scaled gradient'
-    'OPSA($\lambda=10^{-3}$)': '#97e60d',
-    'OPSA($\lambda=10^{-8}$)': '#94cc1a',
-    'Precond. gradient': '#fe6100',
-    'Gauss-Newton': '#648fff'  ,
-    'Levenberg–Marquardt (ours)': '#785ef0'
+        'Subgradient descent': '#dc267f',
+        'Gradient descent': '#dc267f',  # Same color as 'Subgradient descent'
+        'Scaled gradient': '#ffb000',
+        'Scaled gradient($\lambda=10^{-3}$)': '#ffa800',
+        'Scaled gradient($\lambda=10^{-8}$)': '#CD853F',
+        'Scaled subgradient': '#ffaf00',  # Same color as 'Scaled gradient'
+        'OPSA($\lambda=10^{-3}$)': '#97e60d',
+        'OPSA($\lambda=10^{-8}$)': '#94cc1a',
+        'Precond. gradient': '#fe6100',
+        'Gauss-Newton': '#648fff',
+        'Levenberg–Marquardt (ours)': '#785ef0'
     }
-
-    Xvals = np.arange(0, xy_axis_max)
-    Yvals = np.arange(0, xy_axis_max)
-    Xgrid, Ygrid = np.meshgrid(Xvals, Yvals)
-
-    legend_elements = []
-
-    for method in to_be_plotted_.keys():
-        data = to_be_plotted_[method]
-        color = method_colors[method]
-     
-        median_grid = np.zeros((xy_axis_max, xy_axis_max))
-
-        for i in range(xy_axis_max):
-            for j in range(xy_axis_max):
-                median_val = data[i, j][0]  # (median, (5th,95th))
-                median_grid[i, j] = median_val
-
-                ax.scatter(
-                    Xgrid[i, j],
-                    Ygrid[i, j],
-                    median_val,
-                    color=color,
-                    s=40
-                )
-
-        surf = ax.plot_surface(
-            Xgrid, Ygrid, median_grid,
-            color=color,
-            alpha=0.6,
-            edgecolor='none'
-        )
-
-        legend_elements.append(Patch(facecolor=color, label=method))
-
-    ax.set_xticks(Xvals)
-    ax.set_yticks(Yvals)
-    ax.zaxis.set_tick_params(labelsize=font_size // 2)
-    ax.set_xticklabels([fr"$10^{{-{i}}}$" for i in Xvals], fontsize=font_size // 2)
-    ax.set_yticklabels([fr"$10^{{-{j}}}$" for j in Yvals], fontsize=font_size // 2)
-
-    ax.set_xlabel(r"$\gamma$", fontsize=font_size, labelpad=20)
-    ax.set_ylabel(r"$\lambda$", fontsize=font_size, labelpad=20)
-    ax.set_xlim(max(Xvals), min(Xvals))
-
-    bound = f"10^{{-{rel_error_exp}}}"
-    ax.set_zlabel(
-        rf"Iterations for $\frac{{\|z_k - z^*\|_2}}{{\|z_k\|_2}} \leq {bound}$",
-        fontsize=font_size,
-        labelpad=30,
-    )
-
-    ax.set_title(f"Decay Parameter q={q}", fontsize=font_size)
-    
-    plt.legend(
-    handles=legend_elements,
-    loc='upper right',  # Position the legend
-    bbox_to_anchor=(1.25, 1),  # Move it outside the plot
-    fontsize=font_size // 2,
-    title="Methods",  # Optional title for the legend
-    title_fontsize=font_size // 2
-    )
-
-
-    plt.tight_layout()
+    X_val = [10**-i for i in range(len(gammas))]
     base_dir = './exp2'
-    save_path = os.path.join(base_dir, f"plot_{problem}_{q}_{corr_level}_{r_test}_{c}.pdf")
-    plt.savefig(save_path, format='pdf')
-    print(f"Figure saved to: {save_path}")
-    plt.show()
+    os.makedirs(base_dir, exist_ok=True)  # Ensure the directory exists
+    
+    for i, lambda_ in enumerate(lambdas):
+        plt.figure(figsize=(10, 6))  # Create a new figure for each lambda
+        for method in to_be_plotted.keys():
+            color = method_colors[method]
+            data = [to_be_plotted[method][i, j][0] for j in range(len(gammas))]
+            noise  = [to_be_plotted[method][i, j][1] for j in range(len(gammas)) ]  # Assume noise is a tuple (low, high)
+    
+            # Compute the noise bounds
+            noise_low = [noise[j][0] for j in range(len(gammas))]
+            noise_high = [noise[j][1] for j in range(len(gammas))]
+    
+            # Plot scatter points, connecting lines, and noise shading
+            plt.plot(X_val, data, label=method, color=color, linestyle='-', linewidth=2, marker='o')
+            plt.fill_between(X_val, noise_low, noise_high, color=color, alpha=0.2)
+    
+        # Set labels and title with LaTeX rendering
+        plt.xlabel(r"$\gamma$", fontsize=font_size)
+        bound = 10
+        plt.ylabel(rf"Iterations for $\frac{{\|z_k - z^*\|_2}}{{\|z_k\|_2}} \leq 10^{- rel_error_exp}$", fontsize=font_size)
+        plt.title(f"$q={q}, \lambda = {lambda_}$", fontsize=font_size)
+        plt.xscale('log')
+        
+        # Customize ticks and add grid
+        plt.xticks(fontsize=font_size//2)
+        plt.yticks(fontsize=font_size//2)
+        plt.grid(True, which='both', linestyle='--', alpha=0.7)
+        plt.legend(fontsize=font_size//2)
+    
+        # Save the plot to a file
+        save_path = os.path.join(base_dir, f"plot_{problem}_{q}_{corr_level}_{r_test}_{c}_{lambda_}.pdf")
+        plt.savefig(save_path, format='pdf')
+        print(f"Figure saved to: {save_path}")
+        plt.show()
+        plt.close()  # Close the figure to free memory
+        
+    
+
+
+
     
     
 run = True
-n=10
+n=40
 r_true = 2
 r = 5
 rel_init_start = 10**-3
 rel_error_exp = 8
 rel_epsilon_stop = 10**(-1*rel_error_exp)
-tests = [ (r_true,1), (r,10)] 
+tests = [ (r_true,1)] 
 problems =  [ 'Burer-Monteiro Matrix Sensing'] #keep only one
-methods = ['Subgradient descent','Gauss-Newton', 'Levenberg–Marquardt (ours)']
+methods = ['Subgradient descent', 'Levenberg–Marquardt (ours)']
 corruption_levels = [0]
-qs = [0.97, 0.98, 0.99]
-xy_axis_max = 2
-lambdas = [ 10**(-i) for i in range(0,xy_axis_max )]
-gammas = [ 10**(-i) for i in range(0,xy_axis_max )]
-K  = 2
-n_trial = 1
+qs = [0.98]
+lambdas = [ 10**(-5)]
+gammas = [ 10**(-i) for i in range(0,11 )]
+K  = 1000
+n_trial = 10
 
 
 if run:
     for corr_level, (r_test, c), q in product(corruption_levels, tests, qs):
-        d = 10 * n * r_true if r_test == r_true else 20 * n * r_true
-        to_be_plotted = dict( (problem, dict( (method,np.zeros((xy_axis_max, xy_axis_max), dtype=object)) for method in methods)) for problem in problems )
+        d = 20 * n * r_true
+        to_be_plotted = dict( (problem, dict( (method,np.zeros((len(lambdas), len(gammas)), dtype=object)) for method in methods)) for problem in problems )
     
         for problem in problems:
-            for i, j in product(range(xy_axis_max), range(xy_axis_max)):
+            for i, j in product(range(len(lambdas)), range(len(gammas))):
                 last_indexes = dict(  (method, [] ) for method in methods)
-    
+              
                 for _ in range(n_trial):
                     # Generate losses depending on the problem
                     if problem == 'Burer-Monteiro Matrix Sensing':
@@ -208,5 +181,5 @@ if run:
 for corr_level, (r_test, c), q in product(corruption_levels, tests, qs):
     for problem, method  in product(problems, methods):
         to_be_plotted = load(f'exp2/to_be_plotted_{problem}_{corr_level}_{r_test}_{c}.pkl')     
-        plot_results(to_be_plotted, corr_level, q, r_test, c, xy_axis_max, gammas, lambdas, font_size, rel_error_exp, problem)
+        plot_results(to_be_plotted, corr_level, q, r_test, c, gammas, lambdas, font_size, rel_error_exp, problem)
     
