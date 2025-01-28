@@ -101,8 +101,8 @@ def plot_results(to_be_plotted_, corr_level, q, r_test, c, xy_axis_max, gammas, 
     ax.set_xticklabels([fr"$10^{{-{i}}}$" for i in Xvals], fontsize=font_size // 2)
     ax.set_yticklabels([fr"$10^{{-{j}}}$" for j in Yvals], fontsize=font_size // 2)
 
-    ax.set_xlabel(r"$\lambda$", fontsize=font_size, labelpad=20)
-    ax.set_ylabel(r"$\gamma$", fontsize=font_size, labelpad=20)
+    ax.set_xlabel(r"$\gamma$", fontsize=font_size, labelpad=20)
+    ax.set_ylabel(r"$\lambda$", fontsize=font_size, labelpad=20)
     ax.set_xlim(max(Xvals), min(Xvals))
 
     bound = f"10^{{-{rel_error_exp}}}"
