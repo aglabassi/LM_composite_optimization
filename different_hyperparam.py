@@ -77,15 +77,16 @@ def plot_results(to_be_plotted_, corr_level, q, r_test, c, gammas, lambdas, font
             noise_high = [noise[j][1] for j in range(len(gammas))]
     
             # Plot scatter points, connecting lines, and noise shading
-            plt.plot(X_val, data, label=method, color=color, linestyle='-', linewidth=2, marker='o')
-            plt.fill_between(X_val, noise_low, noise_high, color=color, alpha=0.2)
+            plt.plot(gammas, data, label=method, color=color, linestyle='-', linewidth=2, marker='o')
+            plt.fill_between(gammas, noise_low, noise_high, color=color, alpha=0.2)
     
         # Set labels and title with LaTeX rendering
         plt.xlabel(r"$\gamma$", fontsize=font_size)
         bound = 10
         plt.ylabel(rf"Iterations for $\frac{{\|z_k - z^*\|_2}}{{\|z_k\|_2}} \leq 10^{- rel_error_exp}$", fontsize=font_size)
-        plt.title(f"$q={q}, \lambda = {lambda_}$", fontsize=font_size)
+        plt.title(f"$q={q}, \\lambda = 10^{{-{int(-np.log10(lambda_))}}}$", fontsize=font_size) 
         plt.xscale('log')
+        plt.xticks(gammas, fontsize=font_size//2)  # Explicitly set ticks and labels
         
         # Customize ticks and add grid
         plt.xticks(fontsize=font_size//2)
@@ -174,12 +175,12 @@ if run:
                     shaded = np.percentile(last_indexes[method], [5, 95])
                     to_be_plotted[problem][method][i, j] = (median_last_index, tuple(shaded))
                         
-            save(to_be_plotted[problem], f'exp2/to_be_plotted_{problem}_{corr_level}_{r_test}_{c}.pkl')
+            save(to_be_plotted[problem], f'exp2/to_be_plotted_{problem}_{corr_level}_{r_test}_{c}_{q}.pkl')
 
 # Call the plotting function
 
 for corr_level, (r_test, c), q in product(corruption_levels, tests, qs):
     for problem, method  in product(problems, methods):
-        to_be_plotted = load(f'exp2/to_be_plotted_{problem}_{corr_level}_{r_test}_{c}.pkl')     
+        to_be_plotted = load(f'exp2/to_be_plotted_{problem}_{corr_level}_{r_test}_{c}_{q}.pkl')     
         plot_results(to_be_plotted, corr_level, q, r_test, c, gammas, lambdas, font_size, rel_error_exp, problem)
     
