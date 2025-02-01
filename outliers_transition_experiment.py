@@ -109,5 +109,6 @@ if __name__ == "__main__":
         d_trials=d_trials,
         n=n,
         base_dir="./exp1",  # or your desired directory
-        problem=problem
+        keys = keys_test[0],
+        problem=problem,
     )

@@ -405,8 +405,9 @@ def plot_transition_heatmap(
     d_trials: list,
     n: int,
     base_dir: str,
+    keys: tuple,
     problem: str = 'TransitionPlot',
-    max_corr:float =0.5
+    max_corr:float =0.5,
 ):
     """
     Plots one heatmap for each method stored in success_matrixes 
@@ -485,7 +486,7 @@ def plot_transition_heatmap(
     cbar.ax.tick_params(labelsize=font_size)
 
     #plt.tight_layout()
-    save_path = os.path.join(base_dir, f"{problem}_transition_plot.pdf")
+    save_path = os.path.join(base_dir, f"{problem}_{keys}_transition_plot.pdf")
     plt.savefig(save_path, format='pdf')
     print(f"Figure saved to: {save_path}")
     plt.show()
