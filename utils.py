@@ -41,8 +41,66 @@ def collect_compute_mean(keys, loss_ord, r_true, res, methods, problem):
 
 
 
+def sample_symmetric_matrix_on_boundary(M, eps):
+    """
+    Given a symmetric matrix M (n x n) of rank r and a scalar eps,
+    generate a symmetric matrix A (of rank r) such that:
+        ||A - M||_F = eps * ||M||_F,
+    with A chosen "uniformly at random" from matrices of the form M + U X U^T,
+    where X is a symmetric r x r matrix uniformly distributed on the Frobenius sphere.
+    
+    Parameters:
+      M   : numpy.ndarray, shape (n,n), symmetric of rank r.
+      eps : float, the factor in the norm condition.
+    
+    Returns:
+      A : numpy.ndarray, shape (n,n), symmetric, of rank r.
+    """
+    # Compute the eigendecomposition of M.
+    # (Using eigh since M is symmetric.)
+    eigvals, eigvecs = np.linalg.eigh(M)
+    
+    # Select the nonzero eigenvalues (we use a tolerance to decide)
+    tol = 1e-10
+    nonzero_indices = np.where(np.abs(eigvals) > tol)[0]
+    r = len(nonzero_indices)
+    U = eigvecs[:, nonzero_indices]
+    Sigma = np.diag(eigvals[nonzero_indices])
+    
+    # Determine the target radius for the perturbation.
+    norm_M = np.linalg.norm(M, 'fro')  # equals np.linalg.norm(Sigma, 'fro')
+    R = eps * norm_M
+    
+    # The space of symmetric r x r matrices has dimension d = r(r+1)/2.
+    d = r * (r + 1) // 2
+    
+    # Generate d independent standard normals.
+    x = np.random.randn(d)
+    
+    # Normalize the vector to have norm R.
+    x = (R / np.linalg.norm(x)) * x
+    
+    # Map the vector x to a symmetric r x r matrix X.
+    X = np.zeros((r, r))
+    idx = 0
+    for i in range(r):
+        for j in range(i, r):
+            # Fill the upper triangle (and mirror it).
+            X[i, j] = x[idx]
+            if i != j:
+                X[j, i] = x[idx]
+            idx += 1
+    
+    # Form the perturbation Delta in the range of M.
+    Delta = U @ X @ U.T
+    
+    # Create A by adding the perturbation to M.
+    A = M + Delta
+    return A
+
+
 def trial_execution_matrix(trials, n, r_true, d, keys, init_radius_ratio, T, loss_ord, base_dir, methods, symmetric=True, identity=False, corr_factor=0,
-                           gamma=10**-8, lambda_=0.00001, q=0.9):
+                           gamma=10**-8, lambda_=0.00001, q=0.97):
     
     for trial in trials:
         A, A_adj = create_rip_transform(n, d, identity)
@@ -72,19 +130,22 @@ def trial_execution_matrix(trials, n, r_true, d, keys, init_radius_ratio, T, los
             if symmetric:
                 pert = (pert + pert.T) /2
             Z0 = M_true + (init_radius_ratio* np.linalg.norm(M_true)/ (np.linalg.norm(pert))) * pert
-
+            
+            Z0 = sample_symmetric_matrix_on_boundary(M_true, init_radius_ratio)
+            
     
             U, Sigma, VT = np.linalg.svd(Z0)
             U_r = U[:, :r]
             Sigma_r = Sigma[:r]
-            VT_r = VT[:r, :]
+            VT_r = VT[:, :r]
             
             # Compute Sigma_r^{1/2}
             Sigma_r_sqrt = np.sqrt(Sigma_r)
             
-            # Compute X and Y
-            X0 = U_r * Sigma_r_sqrt
-            Y0 = (VT_r.T) * Sigma_r_sqrt
+            # Compute X and Y  
+            X0 = U_r @ np.diag(Sigma_r_sqrt)
+            Y0 = (VT_r) @ np.diag(Sigma_r_sqrt)
+            #X0 = 10**(-10)*np.random.randn(n,r) random init.
             outputs = dict()
             for method in methods:
                 if symmetric:
@@ -95,6 +156,7 @@ def trial_execution_matrix(trials, n, r_true, d, keys, init_radius_ratio, T, los
                     losses = matrix_recovery_assymetric(X0, Y0, X_true, Y_true, M_true, T, A, A_adj, y_true, loss_ord, 
                                                         r_true, cond_number, method, base_dir, trial, gamma_init=gamma, 
                                                         damping_init=lambda_, q=q)
+                
                 outputs[method]= losses 
     return outputs
 
@@ -203,7 +265,7 @@ def plot_losses_with_styles(losses, stds, r_true, loss_ord, base_dir, problem, k
             std = np.array(stds[method][k])
 
             # Determine the index where errors have converged to machine epsilon
-            convergence_threshold = 1e-12   # Slightly above machine epsilon to account for numerical errors
+            convergence_threshold = 1e-200   # Slightly above machine epsilon to account for numerical errors
             converged_indices = np.where(errs <= convergence_threshold)[0]
             print(method, k)
             if converged_indices.size > 0:
@@ -248,12 +310,12 @@ def plot_losses_with_styles(losses, stds, r_true, loss_ord, base_dir, problem, k
             else:
                 marker = marker_styles[kappa_label]
 
-            # Plotting the mean errors
-            if errs[-1]  == 1:#divergent method
-                diverged_idx = np.where(errs == errs[-1] )[0][0]
-                tmp = np.where(diverged_idx < indices)[0][0]
-                indices = indices[:tmp+1]
-                errs *= (idx_ + 1)
+            # # Plotting the mean errors
+            # if errs[-1]  == 1:#divergent method
+            #     diverged_idx = np.where(errs == errs[-1] )[0][0]
+            #     tmp = np.where(diverged_idx < indices)[0][0]
+            #     indices = indices[:tmp+1]
+            #     errs *= (idx_ + 1)
                 
             print(indices)
             ax.plot(
@@ -600,8 +662,8 @@ def matrix_recovery(
     If restarted=True, run a 'Restarted Levenberg-Marquardt Subgradient Method'.
     """
     ###########################################################################
-    # Common definitions
-    ###########################################################################
+
+    
     def c(x):
         return x @ x.T
 
@@ -653,13 +715,15 @@ def matrix_recovery(
 
     n, r = X.shape
     for t in range(n_iter):
+        print(np.linalg.norm(c(X0) - M_star)/(np.linalg.norm(M_star)))
 
-        if False:
+        if t%20==100:
             print("symmetric")
             print(f'Iteration number :  {t}')
             print(f'Method           :  {method}')
             print(f'Cond. number     :  {cond_number}')
             print(f"r*, r            :  {(r_true, r)}")
+            print(np.linalg.norm(c(X) - M_star)/np.linalg.norm(M_star))
             val_cX = h(c(X))
             print(f'h(c(X)) = {"(DIVERGE)" if (np.isnan(val_cX) or val_cX == np.inf ) else val_cX}')
             print('---------------------')
@@ -670,11 +734,12 @@ def matrix_recovery(
             # Indicate divergence in the losses
             losses += [1]*(n_iter - len(losses))
             break
-        elif np.linalg.norm(c(X) - M_star)/np.linalg.norm(M_star) <= 1e-14:
+        elif np.linalg.norm(c(X) - M_star)/np.linalg.norm(M_star) <= 1e-2000:
             # Indicate we've basically converged
             losses += [1e-15]*(n_iter - len(losses))
             break
         else:
+            print(np.linalg.norm(c(X) - M_star)/np.linalg.norm(M_star))
             losses.append(np.linalg.norm(c(X) - M_star)/np.linalg.norm(M_star))
 
         # Subgradient, etc.
@@ -717,7 +782,8 @@ def matrix_recovery(
 
             if method == 'Levenberg–Marquardt (ours)':
                 damping = np.sqrt( h(c(X))) /4000 if loss_ord == 2 else h(c(X))/100000
-                damping = damping_init*q**t #decaying parameter
+                #damping = np.linalg.norm(c(X) - M_star)
+                #damping = damping_init*q**t #decaying parameter
             else:
                 damping = 0
             preconditionned_g = compute_preconditionner_applied_to_g_bm(X, g, damping)
@@ -737,7 +803,8 @@ def matrix_recovery(
             raise NotImplementedError
 
         # Gradient-like update
-        gamma = gamma_init*q**t #geometrically decaying stepsize
+        #gamma = gamma_init*(q**t) #geometrically decaying stepsize
+        #gamma = 0.1*gamma
         X = X - gamma*preconditionned_G
 
     # Save results
@@ -921,7 +988,7 @@ def matrix_recovery_assymetric(X0, Y0,Xstar,Ystar, M_star, n_iter, A, A_adj, y_t
         constant_stepsize = 0.0000001 #if sensing else 0.1
         if method in [ 'Gauss-Newton', 'Levenberg–Marquardt (ours)']:
             damping = (np.sqrt( h(c(X,Y))) /4000 if loss_ord == 2 else h(c(X,Y))/100000) if method == 'Levenberg–Marquardt (ours)' else 0
-            damping = damping_init*q**t if method == 'Levenberg–Marquardt (ours)' else 0
+            #damping = damping_init*q**t if method == 'Levenberg–Marquardt (ours)' else 0
    
             preconditionned_g_x, preconditionned_g_y = compute_preconditionner_applied_to_g_ass(X, Y, g_x, g_y, damping)  
             preconditionned_G_x = preconditionned_g_x.reshape(*X.shape)
@@ -974,7 +1041,7 @@ def matrix_recovery_assymetric(X0, Y0,Xstar,Ystar, M_star, n_iter, A, A_adj, y_t
         else:
 
             raise NotImplementedError
-        gamma = gamma_init*q**t
+        #gamma = gamma_init*q**t
         X = X - gamma*preconditionned_G_x
         Y = Y - gamma*preconditionned_G_y
         
