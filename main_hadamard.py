@@ -2,16 +2,33 @@ import numpy as np
 import os
 from utils import collect_compute_mean, plot_losses_with_styles
 
-def generate_point_in_b_epsilon(p, epsilon):
-    # Generate a random direction vector with the same dimension as p
-    random_direction = np.random.randn(*p.shape)
-    random_direction /= np.linalg.norm(random_direction)  # Normalize to unit vector
+def generate_point_on_boundary_positive_orthant(p, epsilon):
+    """
+    Generate a random point on the boundary of the ball
+         B(p, ||p|| * epsilon)
+    that lies in the positive orthant.
     
-    # Generate a random distance within the epsilon radius
-    distance = np.random.uniform(0, epsilon)
+    Parameters:
+      p       : numpy array of shape (n,), the center of the ball
+                (assumed to be in the positive orthant)
+      epsilon : float, the relative radius (scaled by ||p||)
+      
+    Returns:
+      new_point : numpy array of shape (n,), a point on the boundary of
+                  B(p, ||p|| * epsilon) that is in the positive orthant.
+    """
+    # Compute the radius of the ball
+    radius = np.linalg.norm(p) * epsilon
     
-    # Create the new point within B_epsilon of p
-    new_point = p + distance * random_direction
+    # Generate a random direction vector with positive entries.
+    # Start with an n-dimensional standard normal vector,
+    # take absolute value so that all coordinates are nonnegative,
+    # and then normalize it.
+    random_direction = np.abs(np.random.randn(*p.shape))
+    random_direction /= np.linalg.norm(random_direction)
+    
+    # Place the new point exactly on the boundary
+    new_point = p + radius * random_direction
     
     return new_point
 
@@ -49,7 +66,7 @@ for trial in range(n_trial):
         
         x_star = np.concatenate((np.linspace(1, 1/kappa, r_true), np.zeros(n-r_true)))
         radius = 0.01*np.linalg.norm(x_star**2)
-        x0 = generate_point_in_b_epsilon(x_star, np.sqrt(radius))
+        x0 = generate_point_on_boundary_positive_orthant(x_star, np.sqrt(radius))
         print(x0)
         T = 100
         A = generate_rip_matrix(m, n)
@@ -65,7 +82,7 @@ for trial in range(n_trial):
             file_name = f'experiments/exphad_{method}_l_{1}_r*={r_true}_r={n}_condn={kappa}_trial_{trial}.csv'
             errs = []
             for i in range(T):
-                damping = np.linalg.norm(x**2 - x_star**2)
+                damping = np.linalg.norm( A@(x**2) - b, ord=1)/100
                 
                 if  np.isnan(damping) or damping > 10**2:
                     errs.append(1)
