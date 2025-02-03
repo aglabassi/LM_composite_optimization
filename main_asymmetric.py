@@ -23,11 +23,11 @@ if __name__ == "__main__":
     np.random.seed(42)
     r = 5
     if loss_ord == 2:
-        methods= [ 'Gauss-Newton','Gradient descent', 'Precond. gradient', 'Levenberg–Marquardt (ours)', 'Scaled gradient', 'Scaled gradient($\lambda=10^{-8}$)']
+        methods= [ 'Gradient descent', 'Levenberg–Marquardt (ours)','Scaled gradient($\lambda=10^{-8}$)']
         methods_all = methods
         methods_test = []
     else:
-        methods = [ 'Subgradient descent' , 'Scaled subgradient', 'OPSA($\lambda=10^{-8}$)', 'Gauss-Newton', 'Levenberg–Marquardt (ours)']
+        methods = [ 'Subgradient descent' , 'OPSA($\lambda=10^{-8}$)', 'Levenberg–Marquardt (ours)']
         methods_all = methods
         methods_test = []
             
