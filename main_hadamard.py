@@ -65,8 +65,9 @@ for trial in range(n_trial):
             
         
         x_star = np.concatenate((np.linspace(1, 1/kappa, r_true), np.zeros(n-r_true)))
-        radius = 0.01*np.linalg.norm(x_star**2)
-        x0 = generate_point_on_boundary_positive_orthant(x_star, np.sqrt(radius))
+        radius = 1
+        z0 = generate_point_on_boundary_positive_orthant(x_star**2, radius)
+        x0 = np.sqrt(z0)
         print(x0)
         T = 100
         A = generate_rip_matrix(m, n)
