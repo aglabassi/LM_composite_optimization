@@ -137,14 +137,14 @@ def trial_execution_matrix(trials, n, r_true, d, keys, init_radius_ratio, T, los
             U, Sigma, VT = np.linalg.svd(Z0)
             U_r = U[:, :r]
             Sigma_r = Sigma[:r]
-            VT_r = VT[:, :r]
+            VT_r = VT[:r, :]
             
             # Compute Sigma_r^{1/2}
             Sigma_r_sqrt = np.sqrt(Sigma_r)
             
             # Compute X and Y  
             X0 = U_r @ np.diag(Sigma_r_sqrt)
-            Y0 = (VT_r) @ np.diag(Sigma_r_sqrt)
+            Y0 = (VT_r.T) @ np.diag(Sigma_r_sqrt)
             #X0 = 10**(-10)*np.random.randn(n,r) random init.
             outputs = dict()
             for method in methods:
