@@ -715,9 +715,7 @@ def matrix_recovery(
 
     n, r = X.shape
     for t in range(n_iter):
-        print(np.linalg.norm(c(X0) - M_star)/(np.linalg.norm(M_star)))
-
-        if t%20==100:
+        if t%20==0:
             print("symmetric")
             print(f'Iteration number :  {t}')
             print(f'Method           :  {method}')
@@ -739,7 +737,6 @@ def matrix_recovery(
             losses += [1e-15]*(n_iter - len(losses))
             break
         else:
-            print(np.linalg.norm(c(X) - M_star)/np.linalg.norm(M_star))
             losses.append(np.linalg.norm(c(X) - M_star)/np.linalg.norm(M_star))
 
         # Subgradient, etc.
