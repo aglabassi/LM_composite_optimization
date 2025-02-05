@@ -292,9 +292,11 @@ def run_methods(methods_test, keys, n, r_true, target_d, identity, device, n_ite
                 if loss_ord == 1:
                     subgradient_h = measurement_operator.A_adj( torch.sign( residual ) ).reshape(-1) #L1
                     h_c_x =  torch.sum(torch.abs( residual )).item()
+                    damping = (10**-5)*h_c_x
                 elif loss_ord == 2:
                     subgradient_h = measurement_operator.A_adj( residual/torch.norm(residual) ).reshape(-1) #L2
                     h_c_x =  torch.norm(residual)
+                    damping = (10**-5)*np.sqrt(h_c_x)
                 
 
                 grad = nabla_c_transpose_g(X, subgradient_h.view(n,n,n))
@@ -303,7 +305,8 @@ def run_methods(methods_test, keys, n, r_true, target_d, identity, device, n_ite
                     stepsize = h_c_x/(torch.norm(grad)**2)
                     preconditioned_grad = grad
                 else:
-                    damping = 0 if method == 'Gauss-Newton' else (lambda_*q**k)
+                    damping = 0 if method == 'Gauss-Newton' else damping
+                    #damping = 0 if method == 'Gauss-Newton' else (lambda_*q**k)
                     preconditioned_grad = compute_preconditionner_applied_to_g_cp_sym(X, grad, damping)
                     
                     if method == 'Gauss-Newton':
@@ -314,7 +317,7 @@ def run_methods(methods_test, keys, n, r_true, target_d, identity, device, n_ite
                     elif method == 'Levenberg–Marquardt (ours)':
                         stepsize = (h_c_x) / (torch.dot(subgradient_h,subgradient_h))
                 
-                stepsize = gamma*q**(k) #geometric stepsize
+                #stepsize = gamma*q**(k) #geometric stepsize
                 X = X - stepsize * preconditioned_grad
                     
                     
