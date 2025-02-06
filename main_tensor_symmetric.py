@@ -417,7 +417,7 @@ def run_methods(methods_test, keys, n, r_true, target_d, identity, device,
         else:
             X0, Y0, Z0 = boot_strap_init_assym(T_star, X_star, Y_star, Z_star, radius_init, n,r)
         # Print the relative error
-        
+
         for method in methods:
             X = X0.clone()
             Y = Y0.clone()
@@ -497,8 +497,8 @@ def run_methods(methods_test, keys, n, r_true, target_d, identity, device,
                     X = X - stepsize * prgx
                     Y = Y - stepsize * prgy
                     Z = Z - stepsize * prgz
-                
-            file_name = f'experiments/exptensorsym_{method}_l_{loss_ord}_r*={r_true}_r={r}_condn={kappa}_trial_{0}.csv'
+            
+            file_name = f'experiments/exptensor{"sym" if symmetric else ""}_{method}_l_{loss_ord}_r*={r_true}_r={r}_condn={kappa}_trial_{0}.csv'
             full_path = os.path.join(base_dir, file_name)
             np.savetxt(full_path, np.array(errs), delimiter=',') 
             full_path = os.path.join(base_dir, file_name)
@@ -510,11 +510,11 @@ def run_methods(methods_test, keys, n, r_true, target_d, identity, device,
         
         
 
-n = 4
+n = 20
 r_true = 2
 target_d = n * r_true * 20
-symmetric =False
-identity = True 
+symmetric = False
+identity = False 
 device = 'cpu'
 spectral_init = False
 base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -524,9 +524,9 @@ n_iter = 1000
 
 np.random.seed(42)
 
-keys = [(3,1)]
+keys = [(2,1), (2,10), (4,1), (4,10)]
 
-methods = [ 'Levenberg–Marquardt (ours)']
+methods = [ 'Subgradient descent', 'Levenberg–Marquardt (ours)']
 
 methods_test = methods
 
@@ -535,5 +535,5 @@ run_methods(methods_test, keys, n, r_true, target_d, identity, device,
             n_iter, spectral_init, base_dir, 
             loss_ord, radius_init, symmetric)
 
-errs, stds = collect_compute_mean(keys, loss_ord, r_true, False, methods, 'tensorsym')
-plot_losses_with_styles(errs, stds, r_true, loss_ord, base_dir, 'Symmetric CP', 1)
+errs, stds = collect_compute_mean(keys, loss_ord, r_true, False, methods, 'tensor' + ('sym' if symmetric else ''))
+plot_losses_with_styles(errs, stds, r_true, loss_ord, base_dir, ('Symmetric' if symmetric else '') + 'CP', 1)
