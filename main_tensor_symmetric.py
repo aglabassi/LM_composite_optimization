@@ -45,16 +45,16 @@ class TensorMeasurementOperator:
             adjoint = torch.sum(y_expanded * self.A_tensors, dim=0)
             return adjoint
 
-def c(X, weights= None):
+def c(X, Y,Z, weights= None):
     # c(X) = sum_{l=1}^{r} X_{:,l} ⊗ X_{:,l} ⊗ X_{:,l}
     # We can construct it using a Tucker decomposition with a superdiagonal core.
     r = X.shape[1]
     G  = torch.zeros(r, r, r, device=device, dtype=torch.float64)
     G[torch.arange(r), torch.arange(r), torch.arange(r)] = 1
-    return tl.tucker_to_tensor((G, [X, X, X]))
+    return tl.tucker_to_tensor((G, [X, Y, Z]))
 
 
-def nabla_c_transpose_g(X, g):
+def nabla_c_transpose_g_sym(X, v):
     """
     Thank you GPT O 
     Compute (nabla c(X))^T g for given X and g.
@@ -63,7 +63,7 @@ def nabla_c_transpose_g(X, g):
     ----------
     X : torch.Tensor of shape (n, r)
         Factor matrix with r components, each of length n.
-    g : torch.Tensor of shape (n, n, n)
+    v : torch.Tensor of shape (n, n, n)
         The 3D tensor 'g'.
 
     Returns
@@ -72,70 +72,63 @@ def nabla_c_transpose_g(X, g):
         The result of (nabla c(X))^T g.
     """
     n, r = X.shape
-    
-    # A_l(k) = sum_{i,j} g[i,j,k] * X[i,l]*X[j,l]
-    # We can compute this for all l,k by tensordot twice:
-    # Step 1: contract over i: sum_{i} g[i,j,k]*X[i,l]
-    # g is (n,n,n), X is (n,r)
-    # torch.tensordot(g,X,(0,0)) results in shape (n,n,r) summing over i.
-    tmpA = torch.tensordot(g, X, dims=([0],[0]))  # (n, n, r)
-    # Now sum over j with X again: tmpA is (n,n,r), X is (n,r)
-    # We want sum_j tmpA[j,k,l]*X[j,l], that is a bilinear form producing (n,r):
-    # tensordot(tmpA, X, ([0],[0])) gives (n,r,r)
-    # We want the diagonal over the last two r-dim, i.e. same l for both multiplications:
-    # But we used X in both contractions in the same manner, resulting in a "matrix" over l,l'.
-    # Instead, swap order: do the contraction with X on one mode fully first:
-    
-    # Let's do a more straightforward approach using einsum for clarity:
-
-    # A_l:
-    # A_l(k) = sum_{i,j} g[i,j,k]*X[i,l]*X[j,l]
-    # We can write this as:
-    # A(k,l) = (X.T g[:,:,k] X)_(l,l) but we just need the diagonal in l,l
+                   
     # Let's use einsum directly:
-    A = torch.einsum('ijk,il,jl->kl', g, X, X)  # sum over i,j
+    A = torch.einsum('ijk,il,jl->kl', v, X, X)  # sum over i,j
     # A: (k,l)
 
-    # B_l:
-    # B_l(j) = sum_{i,k} g[i,j,k]*X[i,l]*X[k,l]
-    # Just permute indices to get a similar form:
-    # This is like A but with indices permuted: (i,j,k) -> (i,k,j)
-    # We can get this by transposing g or by changing the einsum pattern:
-    B = torch.einsum('ijk,il,kl->jl', g, X, X)  # sum over i,k
-    # B: (j,l)
+    B = torch.einsum('ijk,il,kl->jl', v, X, X)  # sum over i,k
 
-    # C_l:
-    # C_l(i) = sum_{j,k} g[i,j,k]*X[j,l]*X[k,l]
-    # Another permutation:
-    C = torch.einsum('ijk,jl,kl->il', g, X, X)  # sum over j,k
-    # C: (i,l)
+    C = torch.einsum('ijk,jl,kl->il', v, X, X) 
 
-    # Now we have A(k,l), B(j,l), C(i,l).
-    # i,j,k all run from 0 to n-1, so we can just rename indices consistently:
-    # The dimension indexes i,j,k are all size n, so we can add them directly as they are all vectors of length n for each l.
-    # But A(k,l), B(j,l), and C(i,l) are indexed by different letters. We must align them.
-    # Actually, i,j,k are dummy indices and are identical in range. We can just treat them as the same dimension and add them up.
-    # Just rename k->i and j->i so that A, B, C all index with i. This is just a conceptual rename:
-    # We'll do it by expanding each into shape (n,r) and add:
-
-    # A, B, C are each (n,r), just with different dimension names. We'll just add them:
     out = A + B + C  # (n,r)
 
     return out
 
 
-def operator(X, XPRIME):
-    # Compute A = X^T X
-    A = X.T @ X
+def nabla_c_transpose_g_assym(X, Y,Z, v):
+    """
+    Thank you GPT O 
+    Compute (nabla c(X))^T g for given X and g.
     
-    # Compute A squared elementwise
-    A_sq = A * A  # or A**2
+    Parameters
+    ----------
+    X : torch.Tensor of shape (m, r)
+    Y:  torch.Tensor of shape (n, r)
+    Z:  torch.Tensor of shape (p, r)
+        Factor matrix with r components, each of length n.
+    g : torch.Tensor of shape (n, n, n)
+        The 3D tensor 'g'.
 
-    # Compute the elementwise product (X'^T X) * (X^T X)
-    B = (XPRIME.T @ X) * A
+    Returns
+    -------
+    torch.Tensor of shape (m, r). (n,r) and (p,r)
+        The result of (nabla c(X))^T g.
+    """
+    
+    
+    A = torch.einsum('ijk,jl,kl->il', v, Y, Z) # sum over i,j
+    
+    B = torch.einsum('ijk,il,kl->jl', v, X, Z)  # sum over i,k
+ 
+    C = torch.einsum('ijk,il,jl->kl', v, X, Y)  # sum over j,k
+
+
+    return A,B,C
+
+
+
+
+def operator_sym(X, XPRIME):
+    # Compute A = X^T X
+    XX = X.T @ X
+    XX_PRIME = XPRIME.T @ X
+    
+    
+   
 
     # Compute the final result
-    result = 3 * (XPRIME @ A_sq) + 6 * (X @ B)
+    result = 3 * (XPRIME @ (XX*XX)) + 6 * (X @ (XX_PRIME * XX))
     return result
 
 
@@ -150,7 +143,7 @@ def compute_preconditionner_applied_to_g_cp_sym(X, g, damping, max_iter=100, eps
     x = torch.zeros_like(g)
 
     # Compute initial residual
-    r = g - (operator(X, x) + damping * x)
+    r = g - (operator_sym(X, x) + damping * x)
     p = r.clone()
 
     # Compute initial residual norm squared
@@ -162,7 +155,7 @@ def compute_preconditionner_applied_to_g_cp_sym(X, g, damping, max_iter=100, eps
     }
 
     for i in range(max_iter):
-        Ap = operator(X, p) + damping * p
+        Ap = operator_sym(X, p) + damping * p
         pAp = (p * Ap).sum()
         alpha = rs_old / pAp
 
@@ -182,57 +175,139 @@ def compute_preconditionner_applied_to_g_cp_sym(X, g, damping, max_iter=100, eps
     return x
 
 
-def boot_strap_init(T_star, tol, n, r):
-        
 
-    X  = torch.rand(n,r)
+def operator_assym(X, Y, Z, XPRIME, YPRIME, ZPRIME):
+    # Shape assumptions (for example):
+    # X, XPRIME: (n, d), so X.T @ X -> (d, d), etc.
     
-    measurement_operator = TensorMeasurementOperator(n, n, n, target_d, identity=True)
-    idx = 0
-    for k in range(1000):
-       
-        
-        T  =  c(X)
-        err = torch.norm(T - T_star)
-        err_rel = err/ torch.norm(T_star)
-        print(err_rel)
-       
-        
-        if err_rel <= tol:
-            break 
-        
-        residual = measurement_operator.A( T - T_star )
-        
-        
-        
+    XX = X.T @ X            # (d, d)
+    YY = Y.T @ Y            # (d, d)
+    ZZ = Z.T @ Z            # (d, d)
 
-        subgradient_h = measurement_operator.A_adj( residual/torch.norm(residual) ).reshape(-1) #L2
-        h_c_x =  torch.norm(residual)
-        
-
-        grad = nabla_c_transpose_g(X, subgradient_h.view(n,n,n))
-
-        damping = err
-        preconditioned_grad = compute_preconditionner_applied_to_g_cp_sym(X, grad, damping)
-        
-        stepsize = (h_c_x) / (torch.dot(subgradient_h,subgradient_h))
-       
-        X = X - stepsize * preconditioned_grad
-        idx+=1
-        
-    print('err_rel' + str(err_rel) + ', ' + str(idx))
+    XX_PRIME = XPRIME.T @ X # (d, d)
+    YY_PRIME = YPRIME.T @ Y # (d, d)
+    ZZ_PRIME = ZPRIME.T @ Z # (d, d)
     
-    while err_rel <= tol/10:
-        X  += torch.rand(n,r)*0.0000001
-        T = c(X)
+    # -- Each RES_* is a sum of three terms, all shaped (n, d).
+    # -- We keep a symmetrical pattern: 
+    #    1) prime variable on the left, unprimed on the right
+    #    2) unprimed variable on the left, "prime" factor in the middle, unprimed on the right
+    #    etc.
+    #
+    # Notice that each term is: 
+    #    <something of shape (n, d)> @ (<something of shape (d, d)> * <something else of shape (d, d)>)
+    # i.e. standard matrix multiplication on the outside, but elementwise ("*") on the inside.
+
+    RES_X = (
+        XPRIME @ (YY * ZZ)            # prime-X times (unprimed Y & Z)
+        + X @ (YY_PRIME * ZZ)         # unprimed X times (prime-Y, unprimed Z)
+        + X @ (YY * ZZ_PRIME)         # unprimed X times (unprimed Y, prime-Z)
+    )
+
+    RES_Y = (
+        YPRIME @ (XX * ZZ)            # prime-Y times (unprimed X & Z)
+        + Y @ (XX_PRIME * ZZ)         # unprimed Y times (prime-X, unprimed Z)
+        + Y @ (XX * ZZ_PRIME)         # unprimed Y times (unprimed X, prime-Z)
+    )
+
+    RES_Z = (
+        ZPRIME @ (XX * YY)            # prime-Z times (unprimed X & Y)
+        + Z @ (XX_PRIME * YY)         # unprimed Z times (prime-X, unprimed Y)
+        + Z @ (XX * YY_PRIME)         # unprimed Z times (unprimed X, prime-Y)
+    )
+
+    return RES_X, RES_Y, RES_Z
+
+
+
+def compute_preconditionner_applied_to_g_cp_assym(X, Y, Z, grad, damping, max_iter=100, epsilon=1e-14):
+    """
+    Thanks GPT O
+    Conjugate gradient method. g is shape of X.
+    X, g are PyTorch tensors.
+    operator(X, v) should be defined to return a PyTorch tensor of the same shape as X.
+    """
+    # Initialize x as a zero tensor like g
+    gx,gy,gz = torch.unbind(grad)
+    
+    x = torch.zeros_like(gx)
+    y = torch.zeros_like(gy)
+    z = torch.zeros_like(gz)
+
+    # Compute initial residual
+    r = torch.stack((gx,gy,gz)) - ( torch.stack(operator_assym(X,Y,Z,x,y,z)) + damping * torch.stack((x, y,z)))
+    p = r.clone()
+
+    # Compute initial residual norm squared
+    rs_old = (r * r).sum()
+
+    info = {
+        'iterations': 0,
+        'residual_norm': torch.sqrt(rs_old).item()
+    }
+
+    for i in range(max_iter):
+        px,py,pz = torch.unbind(p)
+        Ap = torch.stack(operator_assym(X,Y,Z,px,py,pz)) + damping * torch.stack((px,py,pz))
+        pAp = (p * Ap).sum()
+        alpha = rs_old / pAp
+
+        x = x + alpha * px
+        y = y + alpha * py
+        z = z + alpha * pz
+        
+        r = r - alpha * Ap
+        rs_new = (r * r).sum()
+
+        info['iterations'] = i + 1
+        info['residual_norm'] = torch.sqrt(rs_new).item()
+
+        if rs_new.sqrt() <= epsilon:
+            break
+
+        p = r + (rs_new / rs_old) * p
+        rs_old = rs_new
+
+    return x,y,z
+
+
+
+
+def boot_strap_init(T_star,X_star, tol, n, r):
+        
+    
+    err_rel = 0
+    
+    
+    X = X_star.clone()
+    pad_amount = r - X_star.shape[1]
+    X = torch.nn.functional.pad(X, (0, pad_amount), mode='constant', value=0)
+    
+
+    
+    to_add = 10**-5
+    
+    T = c(X,X,X)
+    err_rel = torch.norm(T - T_star)/torch.norm(T_star)
+            
+    print(err_rel)
+
+    while err_rel <= tol:
+        X  += torch.rand(n,r)*to_add
+        
+        T = c(X,X,X) 
         err_rel = torch.norm(T - T_star)/torch.norm(T_star)
         print(err_rel)
-
-    return X
-
+        
 
 
-def run_methods(methods_test, keys, n, r_true, target_d, identity, device, n_iter, spectral_init, base_dir, loss_ord, radius_init, corr_level=0, q=0.9, lambda_ = 0.0001, gamma = 0.001): 
+    return X,X,X
+
+
+
+def run_methods(methods_test, keys, n, r_true, target_d, identity, device, 
+                n_iter, spectral_init, base_dir, loss_ord, radius_init, symmetric,
+                corr_level=0, q=0.9, lambda_ = 0.0001, gamma = 0.001): 
     
     measurement_operator = TensorMeasurementOperator(n, n, n, target_d, identity=identity)
 
@@ -247,9 +322,13 @@ def run_methods(methods_test, keys, n, r_true, target_d, identity, device, n_ite
         singular_values = torch.linspace(1.0, 1/kappa, r_true, device=device, dtype=torch.float64)
         S = torch.diag(singular_values)
         
+        
+                
+
         # Construct X_star in double
         X_star = Q_u @ S @ Q_v.T
-        T_star = c(X_star)
+        
+        T_star = c(X_star,X_star, X_star)
         
         y_true =  measurement_operator.A(T_star )
         num_ones = int(y_true.shape[0]*corr_level)
@@ -260,29 +339,39 @@ def run_methods(methods_test, keys, n, r_true, target_d, identity, device, n_ite
         y_true = y_true + np.linalg.norm(y_true)*np.random.normal(size=y_true.shape[0])*mask
   
  
-
-      
-        X0 = boot_strap_init(T_star, radius_init, n,r)
+          
+        X0, Y0,Z0 = boot_strap_init(T_star, X_star,radius_init, n,r)
+        
         # Print the relative error
         
         for method in methods:
             X = X0.clone()
-          
+            Y = Y0.clone()
+            Z = Z0.clone()
+        
             
             errs = []
             
             for k in range(n_iter):
-                T  =  c(X)
+                
+                
+                if symmetric:
+                    T = c(X,X,X)
+                else:
+                    T = c(X,Y,Z)
+                    
                 err = torch.norm(T - T_star)
                 rel_err = err/(torch.norm(T_star))
                 if torch.isnan(err) or rel_err > 1:
                     errs = errs +  [1 for _ in range(n_iter - len(errs)) ]
                     break
-                if rel_err < 10**-13:
-                    errs = errs +  [10**-13 for _ in range(n_iter - len(errs)) ]
+                if rel_err < 10**-15:
+                    errs = errs +  [10**-15 for _ in range(n_iter - len(errs)) ]
                     break
                     
-                print(err)      
+
+                print(method)
+                print(rel_err)  
                 print('---')
                 errs.append(rel_err)
                 
@@ -290,40 +379,50 @@ def run_methods(methods_test, keys, n, r_true, target_d, identity, device, n_ite
                 residual = measurement_operator.A( T) - y_true
                 
                 if loss_ord == 1:
-                    subgradient_h = measurement_operator.A_adj( torch.sign( residual ) ).reshape(-1) #L1
+                    subgradient_h = measurement_operator.A_adj( torch.sign( residual ) ).view(-1) #L1
                     h_c_x =  torch.sum(torch.abs( residual )).item()
-                    damping = (10**-5)*h_c_x
-                elif loss_ord == 2:
-                    subgradient_h = measurement_operator.A_adj( residual/torch.norm(residual) ).reshape(-1) #L2
+                elif loss_ord == 0.5:
+                    subgradient_h = measurement_operator.A_adj( residual/torch.norm(residual) ).view(-1) #L2
                     h_c_x =  torch.norm(residual)
-                    damping = (10**-5)*np.sqrt(h_c_x)
+                elif loss_ord == 2:
+                    subgradient_h = measurement_operator.A_adj( residual).view(-1) #L2
+            
+                    h_c_x =  0.5*torch.norm(residual)**2
+                    
+                    
+                if symmetric:
+                    grad = nabla_c_transpose_g_sym(X, subgradient_h.view(n,n,n))
                 
-
-                grad = nabla_c_transpose_g(X, subgradient_h.view(n,n,n))
-
+                else:
+                    grad = torch.stack(nabla_c_transpose_g_assym(X,Y,Z, subgradient_h.view(n,n,n)))
+                
                 if method in  ['Gradient descent', 'Subgradient descent']:
                     stepsize = h_c_x/(torch.norm(grad)**2)
                     preconditioned_grad = grad
                 else:
+                    damping = torch.sqrt(h_c_x) if loss_ord == 2 else h_c_x*10**-5
+                    
                     damping = 0 if method == 'Gauss-Newton' else damping
                     #damping = 0 if method == 'Gauss-Newton' else (lambda_*q**k)
-                    preconditioned_grad = compute_preconditionner_applied_to_g_cp_sym(X, grad, damping)
                     
-                    if method == 'Gauss-Newton':
-                        QTT1 = preconditioned_grad
-                        QTT2 = operator(X,preconditioned_grad)
-                        denom = torch.sum( QTT1 * QTT2 )
-                        stepsize = (h_c_x) / denom
-                    elif method == 'Levenberg–Marquardt (ours)':
-                        stepsize = (h_c_x) / (torch.dot(subgradient_h,subgradient_h))
+                    if symmetric:
+                        preconditioned_grad = compute_preconditionner_applied_to_g_cp_sym(X, grad, damping)
+                    else:
+                        preconditioned_grad = torch.stack(compute_preconditionner_applied_to_g_cp_assym(X, Y,Z, grad, damping) )
+                    
+        
+                    stepsize = (h_c_x) / (torch.dot(subgradient_h,subgradient_h))
                 
                 #stepsize = gamma*q**(k) #geometric stepsize
-                X = X - stepsize * preconditioned_grad
-                    
-                    
-                    
-                    
-                    
+                #stepsize = 0.1
+                
+                if symmetric:
+                    X = X - stepsize * preconditioned_grad
+                else:
+                    prgx, prgy, prgy = torch.unbind(preconditioned_grad)
+                    X = X - stepsize * prgx
+                    Y = Y - stepsize * prgx
+                    Z = Z - stepsize * prgx
                 
             file_name = f'experiments/exptensorsym_{method}_l_{loss_ord}_r*={r_true}_r={r}_condn={kappa}_trial_{0}.csv'
             full_path = os.path.join(base_dir, file_name)
@@ -335,29 +434,30 @@ def run_methods(methods_test, keys, n, r_true, target_d, identity, device, n_ite
         
         
 
-n = 20
+n = 10
 r_true = 2
 target_d = n * r_true * 20
-identity = False
+symmetric =False
+identity = False 
 device = 'cpu'
 spectral_init = False
 base_dir = os.path.dirname(os.path.abspath(__file__))
-loss_ord = 2
-radius_init = 0.00001
-n_iter = 1000
+loss_ord = 0.5
+radius_init = 10**-2  if symmetric else 10**-6
+n_iter = 100
 
-keys = [(2,1), (2,10), (4,1), (4,10)]
-if loss_ord == 1:
-    methods = ['Subgradient descent', 'Gauss-Newton','Levenberg–Marquardt (ours)']
-elif loss_ord == 2:
-    methods = ['Gradient descent',  'Gauss-Newton', 'Levenberg–Marquardt (ours)']
+np.random.seed(42)
+
+keys = [(2,1)]
+
+methods = ['Subgradient descent',  'Levenberg–Marquardt (ours)']
 
 methods_test = methods
 
 # Call the function
 run_methods(methods_test, keys, n, r_true, target_d, identity, device, 
             n_iter, spectral_init, base_dir, 
-            loss_ord, radius_init)
+            loss_ord, radius_init, symmetric)
 
 errs, stds = collect_compute_mean(keys, loss_ord, r_true, False, methods, 'tensorsym')
 plot_losses_with_styles(errs, stds, r_true, loss_ord, base_dir, 'Symmetric CP', 1)
