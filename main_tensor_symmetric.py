@@ -45,14 +45,33 @@ class TensorMeasurementOperator:
             adjoint = torch.sum(y_expanded * self.A_tensors, dim=0)
             return adjoint
 
-def c(X, Y,Z, weights= None):
-    # c(X) = sum_{l=1}^{r} X_{:,l} ⊗ X_{:,l} ⊗ X_{:,l}
-    # We can construct it using a Tucker decomposition with a superdiagonal core.
-    r = X.shape[1]
-    G  = torch.zeros(r, r, r, device=device, dtype=torch.float64)
-    G[torch.arange(r), torch.arange(r), torch.arange(r)] = 1
-    return tl.tucker_to_tensor((G, [X, Y, Z]))
+def c(X, Y, Z):
+    """
+    Computes the CP tensor from three factor matrices without using tensorly.
 
+    Args:
+        X (torch.Tensor): Factor matrix for mode-1 (shape: I x R)
+        Y (torch.Tensor): Factor matrix for mode-2 (shape: J x R)
+        Z (torch.Tensor): Factor matrix for mode-3 (shape: K x R)
+
+    Returns:
+        torch.Tensor: Reconstructed CP tensor of shape (I, J, K)
+    """
+    I, R1 = X.shape
+    J, R2 = Y.shape
+    K, R3 = Z.shape
+    
+    assert R1 == R2 == R3, "Factor matrices must have the same rank (R)"
+
+    # Compute outer products and sum over rank R
+    tensor = sum(
+        X[:, r].view(I, 1, 1) * 
+        Y[:, r].view(1, J, 1) * 
+        Z[:, r].view(1, 1, K) 
+        for r in range(R1)
+    )
+
+    return tensor
 
 def nabla_c_transpose_g_sym(X, v):
     """
@@ -304,6 +323,48 @@ def boot_strap_init(T_star,X_star, tol, n, r):
     return X,X,X
 
 
+def boot_strap_init_assym(T_star,X_star, Y_star, Z_star, tol, n,r):
+    m = X_star.shape[0]
+    n = Y_star.shape[0]
+    p = Z_star.shape[0]
+    
+    
+    X = X_star.clone()
+    pad_amount = r - X_star.shape[1]
+    X = torch.nn.functional.pad(X, (0, pad_amount), mode='constant', value=0)
+    
+        
+    Y = Y_star.clone()
+    pad_amount = r - Y_star.shape[1]
+    Y = torch.nn.functional.pad(Y, (0, pad_amount), mode='constant', value=0)
+        
+    Z = Z_star.clone()
+    pad_amount = r - Z_star.shape[1]
+    Z = torch.nn.functional.pad(Z, (0, pad_amount), mode='constant', value=0)
+
+    
+    to_add = 10**-6
+    
+    T = c(X,Y,Z)
+    err_rel = torch.norm(T - T_star)/torch.norm(T_star)
+
+
+    while err_rel <= tol:
+        print(err_rel)
+        X  += torch.rand(m,r)*to_add
+        Y  += torch.rand(n,r)*to_add
+        Z  += torch.rand(p,r)*to_add
+        
+        T = c(X,Y,Z) 
+        err_rel = torch.norm(T - T_star)/torch.norm(T_star)
+        
+        
+
+
+    return X,Y,Z
+
+
+
 
 def run_methods(methods_test, keys, n, r_true, target_d, identity, device, 
                 n_iter, spectral_init, base_dir, loss_ord, radius_init, symmetric,
@@ -328,7 +389,17 @@ def run_methods(methods_test, keys, n, r_true, target_d, identity, device,
         # Construct X_star in double
         X_star = Q_u @ S @ Q_v.T
         
-        T_star = c(X_star,X_star, X_star)
+        if symmetric:
+            T_star = c(X_star,X_star, X_star)
+        else:
+            Q_uy, _ = torch.linalg.qr(torch.rand(n, r_true, device=device, dtype=torch.float64))
+            Q_vy, _ = torch.linalg.qr(torch.rand(r_true, r_true, device=device, dtype=torch.float64))
+            Q_uz, _ = torch.linalg.qr(torch.rand(n, r_true, device=device, dtype=torch.float64))
+            Q_vz, _ = torch.linalg.qr(torch.rand(r_true, r_true, device=device, dtype=torch.float64))
+            Y_star  = Q_uy @ S @ Q_vy.T
+            Z_star = Q_uz @ S @ Q_vz.T
+            T_star = c(X_star, Y_star, Z_star)
+            
         
         y_true =  measurement_operator.A(T_star )
         num_ones = int(y_true.shape[0]*corr_level)
@@ -340,8 +411,11 @@ def run_methods(methods_test, keys, n, r_true, target_d, identity, device,
   
  
           
-        X0, Y0,Z0 = boot_strap_init(T_star, X_star,radius_init, n,r)
+        if symmetric:
+            X0, Y0,Z0 = boot_strap_init(T_star, X_star,radius_init, n,r)
         
+        else:
+            X0, Y0, Z0 = boot_strap_init_assym(T_star, X_star, Y_star, Z_star, radius_init, n,r)
         # Print the relative error
         
         for method in methods:
@@ -419,38 +493,40 @@ def run_methods(methods_test, keys, n, r_true, target_d, identity, device,
                 if symmetric:
                     X = X - stepsize * preconditioned_grad
                 else:
-                    prgx, prgy, prgy = torch.unbind(preconditioned_grad)
+                    prgx, prgy, prgz = torch.unbind(preconditioned_grad)
                     X = X - stepsize * prgx
-                    Y = Y - stepsize * prgx
-                    Z = Z - stepsize * prgx
+                    Y = Y - stepsize * prgy
+                    Z = Z - stepsize * prgz
                 
             file_name = f'experiments/exptensorsym_{method}_l_{loss_ord}_r*={r_true}_r={r}_condn={kappa}_trial_{0}.csv'
             full_path = os.path.join(base_dir, file_name)
             np.savetxt(full_path, np.array(errs), delimiter=',') 
             full_path = os.path.join(base_dir, file_name)
             outputs[method] = errs
+            
+            
     return outputs
                 
         
         
 
-n = 10
+n = 4
 r_true = 2
 target_d = n * r_true * 20
 symmetric =False
-identity = False 
+identity = True 
 device = 'cpu'
 spectral_init = False
 base_dir = os.path.dirname(os.path.abspath(__file__))
 loss_ord = 0.5
-radius_init = 10**-2  if symmetric else 10**-6
-n_iter = 100
+radius_init = 10**-2  if symmetric else 10**-2
+n_iter = 1000
 
 np.random.seed(42)
 
-keys = [(2,1)]
+keys = [(3,1)]
 
-methods = ['Subgradient descent',  'Levenberg–Marquardt (ours)']
+methods = [ 'Levenberg–Marquardt (ours)']
 
 methods_test = methods
 
