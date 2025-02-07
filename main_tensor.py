@@ -2,14 +2,9 @@
 # Author: Abdel 
 
 import torch
-import tensorly as tl
-from tensorly.decomposition import tucker, parafac
 import os
 from utils import collect_compute_mean, plot_losses_with_styles
 
-tl.set_backend('pytorch')
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-import numpy as np
 
 # Ensure double precision globally where possible
 torch.set_default_dtype(torch.float64)
