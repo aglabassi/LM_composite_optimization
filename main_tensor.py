@@ -4,7 +4,7 @@
 import torch
 import os
 from utils import collect_compute_mean, plot_losses_with_styles
-
+import numpy as np
 
 # Ensure double precision globally where possible
 torch.set_default_dtype(torch.float64)
