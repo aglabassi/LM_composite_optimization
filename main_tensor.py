@@ -108,16 +108,16 @@ def nabla_c_transpose_g_assym(X, Y,Z, v):
     
     Parameters
     ----------
-    X : torch.Tensor of shape (m, r)
-    Y:  torch.Tensor of shape (n, r)
-    Z:  torch.Tensor of shape (p, r)
+    X : torch.Tensor of shape (n1, r)
+    Y:  torch.Tensor of shape (n2, r)
+    Z:  torch.Tensor of shape (n3, r)
         Factor matrix with r components, each of length n.
     g : torch.Tensor of shape (n, n, n)
         The 3D tensor 'g'.
 
     Returns
     -------
-    torch.Tensor of shape (m, r). (n,r) and (p,r)
+    torch.Tensor of shape (n1, r). (n2,r) and (n3,r)
         The result of (nabla c(X))^T g.
     """
     
@@ -293,8 +293,6 @@ def boot_strap_init(T_star,X_star, tol, n, r):
         
     
     err_rel = 0
-    randreturn =  torch.randn(n,r),torch.randn(n,r),torch.randn(n,r)
-    
     
     X = X_star.clone()
     pad_amount = r - X_star.shape[1]
@@ -319,7 +317,7 @@ def boot_strap_init(T_star,X_star, tol, n, r):
     return X,X,X
     
 
-def boot_strap_init_assym(T_star,X_star, Y_star, Z_star, tol, m, n, p, r):
+def boot_strap_init_assym(T_star,X_star, Y_star, Z_star, tol, n1,n2,n3, r):
     
     X = X_star.clone()
     pad_amount = r - X_star.shape[1]
@@ -343,9 +341,9 @@ def boot_strap_init_assym(T_star,X_star, Y_star, Z_star, tol, m, n, p, r):
 
     while err_rel <= tol:
         print(err_rel)
-        X  += torch.randn(m,r)*to_add
-        Y  += torch.randn(n,r)*to_add
-        Z  += torch.randn(p,r)*to_add
+        X  += torch.randn(n1,r)*to_add
+        Y  += torch.randn(n2,r)*to_add
+        Z  += torch.randn(n3,r)*to_add
         
         T = c(X,Y,Z) 
         err_rel = torch.norm(T - T_star)/torch.norm(T_star)
@@ -382,21 +380,21 @@ def split(concatenated, shapes):
     return tuple(output_tensors)
 
 
-def run_methods(methods_test, keys, m, n, p, r_true, target_d, identity, device, 
+def run_methods(methods_test, keys, n1,n2,n3, r_true, target_d, identity, device, 
                 n_iter, spectral_init, base_dir, loss_ord, radius_init, symmetric,
                 corr_level=0, q=0.9, lambda_ = 0.0001, gamma = 0.001): 
     
     if symmetric:
-        measurement_operator = TensorMeasurementOperator(m, m, m, target_d, identity=identity)
+        measurement_operator = TensorMeasurementOperator(n1, n1, n1, target_d, identity=identity)
     
     else:
-        measurement_operator = TensorMeasurementOperator(m, n, p, target_d, identity=identity)
+        measurement_operator = TensorMeasurementOperator(n1,n2,n3, target_d, identity=identity)
 
     for key in keys:
         outputs = dict()    
         r, kappa = key
         
-        ux, _ = torch.linalg.qr(torch.rand(m, r_true, device=device, dtype=torch.float64))
+        ux, _ = torch.linalg.qr(torch.rand(n1, r_true, device=device, dtype=torch.float64))
         vx, _ = torch.linalg.qr(torch.rand(r_true, r_true, device=device, dtype=torch.float64))
         
         # Create singular values as double
@@ -412,9 +410,9 @@ def run_methods(methods_test, keys, m, n, p, r_true, target_d, identity, device,
         if symmetric:
             T_star = c(X_star,X_star, X_star)
         else:
-            uy, _ = torch.linalg.qr(torch.rand(n, r_true, device=device, dtype=torch.float64))
+            uy, _ = torch.linalg.qr(torch.rand(n2, r_true, device=device, dtype=torch.float64))
             vy, _ = torch.linalg.qr(torch.rand(r_true, r_true, device=device, dtype=torch.float64))
-            uz, _ = torch.linalg.qr(torch.rand(p, r_true, device=device, dtype=torch.float64))
+            uz, _ = torch.linalg.qr(torch.rand(n3, r_true, device=device, dtype=torch.float64))
             vz, _ = torch.linalg.qr(torch.rand(r_true, r_true, device=device, dtype=torch.float64))
             Y_star  = uy @ S @ vy.T
             Z_star =  uz @ S @ vz.T
@@ -430,12 +428,12 @@ def run_methods(methods_test, keys, m, n, p, r_true, target_d, identity, device,
         y_true = y_true + np.linalg.norm(y_true)*np.random.normal(size=y_true.shape[0])*mask
           
         if symmetric:
-            X0, Y0,Z0 = boot_strap_init(T_star, X_star,radius_init, m,r)
+            X0, Y0,Z0 = boot_strap_init(T_star, X_star,radius_init, n1,r)
             T = c(X0,X0,X0)
             err = torch.norm(T - T_star)
         
         else:
-            X0, Y0, Z0 = boot_strap_init_assym(T_star, X_star, Y_star, Z_star, radius_init, m,n, p, r)
+            X0, Y0, Z0 = boot_strap_init_assym(T_star, X_star, Y_star, Z_star, radius_init, n1,n2, n3, r)
         # Print the relative error
         sizes = [ X0.shape, Y0.shape, Z0.shape ]
         for method in methods:
@@ -459,11 +457,15 @@ def run_methods(methods_test, keys, m, n, p, r_true, target_d, identity, device,
                 rel_err = err/(torch.norm(T_star))
              
                     
-                if True:
+                if k%20 == 0:
                     print(method)
                     print(k)
                     print(rel_err)  
                     print('---')
+                    
+                if rel_err < 10**-14:
+                    errs = errs + [10**-15 for _ in range(k, n_iter)]
+                    break
                 errs.append(rel_err)
                 
                
@@ -476,16 +478,15 @@ def run_methods(methods_test, keys, m, n, p, r_true, target_d, identity, device,
                     subgradient_h = measurement_operator.A_adj( residual/torch.norm(residual) ).view(-1) #L2
                     h_c_x =  torch.norm(residual)
                 elif loss_ord == 2:
-                    subgradient_h = measurement_operator.A_adj( residual).view(-1) #L2
-            
+                    subgradient_h = measurement_operator.A_adj( residual).view(-1) #L2 squared
                     h_c_x =  0.5*torch.norm(residual)**2
                     
                     
                 if symmetric:
-                    grad = nabla_c_transpose_g_sym(X, subgradient_h.view(m,m,m))
+                    grad = nabla_c_transpose_g_sym(X, subgradient_h.view(n1,n1,n1))
                 
                 else:
-                    grad = torch.cat(nabla_c_transpose_g_assym(X,Y,Z, subgradient_h.view(m,n,p)))
+                    grad = torch.cat(nabla_c_transpose_g_assym(X,Y,Z, subgradient_h.view(n1,n2,n3)))
                 
                 if method in  ['Gradient descent', 'Subgradient descent']:
                     stepsize = h_c_x/(torch.norm(grad)**2)
@@ -525,25 +526,25 @@ def run_methods(methods_test, keys, m, n, p, r_true, target_d, identity, device,
                 
         
         
-m=5
-n= 20
-p = 10
+n1= 20
+n2= 20
+n3= 20
 
 r_true = 2
-target_d = n * r_true * 20
-symmetric = False
+target_d = n1 * r_true * 20
+symmetric = False #symmetric uses m
 
 identity = False 
 device = 'cpu'
 spectral_init = False
 base_dir = os.path.dirname(os.path.abspath(__file__))
-loss_ord = 0.5
+loss_ord = 1
 radius_init = 10**-2 if symmetric else 10**-3
-n_iter = 100
+n_iter = 5000
 
 np.random.seed(42)
 
-keys = [(2,1), (2,10), (4,1) , (4,10)]
+keys = [(2,1), (2,10), (4,1), (4,10)]
 
 
 methods = [ 'Subgradient descent', 'Levenberg–Marquardt (ours)']
@@ -551,7 +552,7 @@ methods = [ 'Subgradient descent', 'Levenberg–Marquardt (ours)']
 methods_test = methods
 
 # Call the function
-run_methods(methods_test, keys, m,n, p, r_true, target_d, identity, device, 
+run_methods(methods_test, keys, n1,n2, n3, r_true, target_d, identity, device, 
             n_iter, spectral_init, base_dir, 
             loss_ord, radius_init, symmetric)
 

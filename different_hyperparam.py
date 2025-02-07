@@ -8,7 +8,6 @@ Created on Mon Jan 20 11:12:31 2025
 
 import numpy as np
 from utils import trial_execution_matrix
-from main_tensor_symmetric import run_methods
 np.random.seed(42)
 from itertools import product
 import os
@@ -61,7 +60,6 @@ def plot_results(to_be_plotted_, corr_level, q, r_test, c, gammas, lambdas, font
         'Gauss-Newton': '#648fff',
         'Levenberg–Marquardt (ours)': '#785ef0'
     }
-    X_val = [10**-i for i in range(len(gammas))]
     base_dir = './exp2'
     os.makedirs(base_dir, exist_ok=True)  # Ensure the directory exists
     
@@ -84,7 +82,7 @@ def plot_results(to_be_plotted_, corr_level, q, r_test, c, gammas, lambdas, font
         plt.xlabel(r"$\gamma$", fontsize=font_size)
         bound = 10
         plt.ylabel(rf"Iterations for $\frac{{\|z_k - z^*\|_2}}{{\|z_k\|_2}} \leq 10^{- rel_error_exp}$", fontsize=font_size)
-        plt.title(f"$q={q}, \\lambda = 10^{{-{int(-np.log10(lambda_))}}}$", fontsize=font_size) 
+        plt.title(f"$q={q}$", fontsize=font_size) 
         plt.xscale('log')
         plt.xticks(gammas, fontsize=font_size//2)  # Explicitly set ticks and labels
         
@@ -114,15 +112,15 @@ r = 5
 rel_init_start = 10**-3
 rel_error_exp = 8
 rel_epsilon_stop = 10**(-1*rel_error_exp)
-tests = [ (r_true,1)] 
+tests = [ (5,100)] 
 problems =  [ 'Burer-Monteiro Matrix Sensing'] #keep only one
-methods = ['Subgradient descent', 'Levenberg–Marquardt (ours)']
+methods = [ 'Subgradient descent', 'Gauss-Newton','Levenberg–Marquardt (ours)']
 corruption_levels = [0]
-qs = [0.98]
-lambdas = [ 10**(-5)]
-gammas = [ 10**(-i) for i in range(0,11 )]
+qs = [ 0.95, 0.96, 0.97 ]
+lambdas = [ 10**-5 ]
+gammas = [10**-i for i in range(0,12)]
 K  = 1000
-n_trial = 10
+n_trial = 100
 
 
 if run:

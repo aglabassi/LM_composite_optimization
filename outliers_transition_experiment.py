@@ -4,7 +4,6 @@ from multiprocessing import Process
 import numpy as np
 from utils import create_rip_transform, generate_matrix_with_condition, gen_random_point_in_neighborhood, matrix_recovery, plot_losses_with_styles,matrix_recovery_assymetric, trial_execution_matrix, collect_compute_mean
 from utils import plot_transition_heatmap
-from main_tensor_symmetric import run_methods
 import pickle  
 
 def save(obj, filename):
@@ -21,7 +20,7 @@ def load(filename):
     return obj
 
 if __name__ == "__main__":
-    run = True
+    run = False
     problem = 'Burer-Monteiro' #or 'Symmetric CP'
     #problem = 'Asymmetric Matrix'
     #problem = 'Symmetric CP'
@@ -31,8 +30,8 @@ if __name__ == "__main__":
     trials = 20
     n_trial_div_n_cpu = 1
     #os.system('rm experiments/expbm*.csv') if symmetric else os.system('rm experiments/expasymmetric*.csv') 
-    T = 400
-    n = 50
+    T = 1000
+    n = 40
     np.random.seed(42)
     r =5
     
@@ -42,10 +41,10 @@ if __name__ == "__main__":
     methods_all = methods
 
     init_radius_ratio =10**-3
-    keys_all = [(5,100)]
+    keys_all = [(2,1)] #keep one
     keys_test = keys_all
     
-    d_trials = [ i*2*n for i in range(8,20)]
+    d_trials = [ i*2*n for i in range(1,20)]
     cor_interval= 0.025
     corr_ranges = [ [l, l+cor_interval]  for l in np.arange(0, 0.5, cor_interval)]
     
@@ -91,7 +90,7 @@ if __name__ == "__main__":
                         
                     
                     for method in methods:
-                        if outputs[method][-1] <= 1e-12:
+                        if outputs[method][-1] <= 1e-8:
                             success_counters[method] +=1
                             
                 for method in methods:

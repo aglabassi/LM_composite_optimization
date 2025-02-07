@@ -20,8 +20,10 @@ def collect_compute_mean(keys, loss_ord, r_true, res, methods, problem):
     for rank, cond_number in keys:
         for method in methods:
             file_pattern = f"experiments/{('res' if res else 'exp') + problem}_{method}_l_{loss_ord}_r*={r_true}_r={rank}_condn={cond_number}_trial_*.csv"
+            
             file_list = glob.glob(file_pattern)
             data_list = []
+            
             
             # Read each file and append its data to the data_list
             for file in file_list:
@@ -243,10 +245,10 @@ def plot_losses_with_styles(losses, stds, r_true, loss_ord, base_dir, problem, k
     'Gradient descent': '#dc267f',  # Same color as 'Subgradient descent'
     'Scaled gradient': '#ffb000',
     'Scaled gradient($\lambda=10^{-3}$)': '#ffa800',
-    'Scaled gradient($\lambda=10^{-8}$)': '#CD853F',
+    'Scaled gradient($\lambda=10^{-8}$)': '#ffb000',
     'Scaled subgradient': '#ffaf00',  # Same color as 'Scaled gradient'
-    'OPSA($\lambda=10^{-3}$)': '#97e60d',
-    'OPSA($\lambda=10^{-8}$)': '#94cc1a',
+    'OPSA($\lambda=10^{-3}$)': '#ffa800',
+    'OPSA($\lambda=10^{-8}$)': '#ffb000',
     'Precond. gradient': '#fe6100',
     'Gauss-Newton': '#648fff'  ,
     'Levenberg–Marquardt (ours)': '#785ef0'
@@ -265,7 +267,7 @@ def plot_losses_with_styles(losses, stds, r_true, loss_ord, base_dir, problem, k
             std = np.array(stds[method][k])
 
             # Determine the index where errors have converged to machine epsilon
-            convergence_threshold = 1e-200   # Slightly above machine epsilon to account for numerical errors
+            convergence_threshold = 1e-13   # Slightly above machine epsilon to account for numerical errors
             converged_indices = np.where(errs <= convergence_threshold)[0]
             print(method, k)
             if converged_indices.size > 0:
@@ -461,7 +463,8 @@ def plot_losses_with_styles(losses, stds, r_true, loss_ord, base_dir, problem, k
 
     # Display the plot
     plt.show()
-    
+
+
 def plot_transition_heatmap(
     success_matrixes: dict,
     d_trials: list,
@@ -469,7 +472,7 @@ def plot_transition_heatmap(
     base_dir: str,
     keys: tuple,
     problem: str = 'TransitionPlot',
-    max_corr:float =0.5,
+    max_corr: float = 0.5,
 ):
     """
     Plots one heatmap for each method stored in success_matrixes 
@@ -484,6 +487,7 @@ def plot_transition_heatmap(
     mpl.rcParams['font.serif'] = ['Times New Roman']
     mpl.rcParams['mathtext.fontset'] = 'stix'
     mpl.rcParams['font.size'] = font_size
+
     # Adjust the figure size as desired:
     num_methods = len(success_matrixes)
     fig, axs = plt.subplots(
@@ -499,7 +503,7 @@ def plot_transition_heatmap(
     # We'll keep track of the mappable (the last image) to create the colorbar
     im = None
 
-   # Plot each method's heatmap in its own row
+    # Plot each method's heatmap in its own row
     methods = success_matrixes
     for i, method in enumerate(methods):
         ax = axs[i, 0]
@@ -517,41 +521,47 @@ def plot_transition_heatmap(
             extent=(0, max_corr, 0, len(d_trials))
         )
 
-       # Major ticks at [0, 0.1, 0.2, 0.3, 0.4, 0.5]
-        major_ticks = np.arange(0, max_corr+0.01, 0.1)
-        ax.set_xticks(major_ticks)
-        ax.set_xticklabels([f"{val:.1f}" for val in major_ticks])
+        # Major x-ticks at [0, 0.1, 0.2, 0.3, 0.4, 0.5]
+        major_ticks_x = np.arange(0, max_corr + 0.01, 0.1)
+        ax.set_xticks(major_ticks_x)
+        ax.set_xticklabels([f"{val:.1f}" for val in major_ticks_x])
         ax.invert_yaxis()
-        # Minor ticks every 0.02 in [0..0.5], excluding major ticks
-        all_ticks = np.arange(0, max_corr+0.025, 0.025)
-        minor_ticks = [t for t in all_ticks if t not in major_ticks]
-        ax.set_xticks(minor_ticks, minor=True)
 
-        # y-axis: one tick per row in success_matrix (or use d/(2n), etc.)
-        ax.set_yticks(range(len(d_trials)))
-        ax.set_yticklabels([f"{d/(2*n):.0f}" for d in d_trials])
+        # Minor x-ticks every 0.02, excluding major ticks
+        all_ticks_x = np.arange(0, max_corr + 0.025, 0.025)
+        minor_ticks_x = [t for t in all_ticks_x if t not in major_ticks_x]
+        ax.set_xticks(minor_ticks_x, minor=True)
+
+        # Major y-ticks at 1, 3, 5, 7, ... (starting at 1)
+        major_ticks_y = list(range(0, len(d_trials), 2))
+        ax.set_yticks(major_ticks_y)
+        ax.set_yticklabels([f"{d_trials[t] / (2 * n):.0f}" for t in major_ticks_y])
+
+        # Minor y-ticks at 2, 4, 6, 8, ... (without labels)
+        minor_ticks_y = list(range(1, len(d_trials), 2))
+        ax.set_yticks(minor_ticks_y, minor=True)
 
         # Label only the leftmost subplot's y-axis to avoid duplication:
         if i == num_methods - 1:
-            # Label every subplot's x-axis:
             ax.set_xlabel(r"Corruption Level", fontsize=font_size)
-            
-        if i == num_methods//2:
+
+        if i == num_methods // 2:
             ax.set_ylabel(r"Measurement Ratio $m / (2n)$", fontsize=font_size)
 
         # Give each subplot a title corresponding to its method:
         ax.set_title(method, fontsize=font_size)
-        
+
     # Create one colorbar for all subplots, using the last im
     cbar = fig.colorbar(im, ax=axs.ravel().tolist())
     cbar.ax.set_ylabel("Success Ratio", fontsize=font_size)
     cbar.ax.tick_params(labelsize=font_size)
 
-    #plt.tight_layout()
+    # Save the figure
     save_path = os.path.join(base_dir, f"{problem}_{keys}_transition_plot.pdf")
     plt.savefig(save_path, format='pdf')
     print(f"Figure saved to: {save_path}")
     plt.show()
+
     
 def gen_random_point_in_neighborhood(X_true, radius, r, r_true):
     n, dim = X_true.shape

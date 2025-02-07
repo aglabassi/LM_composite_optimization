@@ -6,11 +6,13 @@ from utils import create_rip_transform, generate_matrix_with_condition, gen_rand
 
 
 
+
+
 if __name__ == "__main__":
     
     #Matrix
     
-    loss_ord = 1
+    loss_ord = 2
     kappa = 1
     symmetric = True
     identity = False
@@ -19,20 +21,22 @@ if __name__ == "__main__":
     n_trial_div_n_cpu = 1
     #os.system('rm experiments/expbm*.csv') if symmetric else os.system('rm experiments/expasymmetric*.csv') 
     T = 500
-    n = 20
+    n = 100
     np.random.seed(42)
     r =5
     if loss_ord == 2:
         methods= [ 'Gradient descent','Scaled gradient($\lambda=10^{-8}$)', 'Precond. gradient', 'Levenberg–Marquardt (ours)']
-        methods_test = []
+        methods_test = methods
         methods_all =  methods     
     else:
         methods = [  'Subgradient descent', 'Levenberg–Marquardt (ours)']
-        methods_test = []
+        methods_test = methods
         methods_all = methods
 
+
     init_radius_ratio = 0.01
-    keys_all = [(r_true,1), (r_true,100), (r,100), (r,1)]
+    keys_all = [(r_true, 1), (r_true, 100), (r, 1), (r,100) ]
+    
     keys_test = keys_all
     
     d = 20*n * r_true
@@ -52,3 +56,4 @@ if __name__ == "__main__":
 
     losses, stds = collect_compute_mean(keys_all, loss_ord, r_true, False, methods_all, 'bm' if symmetric else 'asymmetric' )
     plot_losses_with_styles(losses, stds, r_true, loss_ord, base_dir, "Burer-Monteiro" if symmetric else 'Asymmetric', kappa)
+np.float_ = np.float64
