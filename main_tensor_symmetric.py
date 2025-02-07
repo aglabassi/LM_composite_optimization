@@ -296,6 +296,7 @@ def boot_strap_init(T_star,X_star, tol, n, r):
         
     
     err_rel = 0
+    randreturn =  torch.randn(n,r),torch.randn(n,r),torch.randn(n,r)
     
     
     X = X_star.clone()
@@ -317,11 +318,9 @@ def boot_strap_init(T_star,X_star, tol, n, r):
         T = c(X,X,X) 
         err_rel = torch.norm(T - T_star)/torch.norm(T_star)
         print(err_rel)
-        
-
-
+    #return torch.randn(n,r),torch.randn(n,r),torch.randn(n,r)
     return X,X,X
-
+    
 
 def boot_strap_init_assym(T_star,X_star, Y_star, Z_star, tol, n,r):
     m = X_star.shape[0]
@@ -343,7 +342,7 @@ def boot_strap_init_assym(T_star,X_star, Y_star, Z_star, tol, n,r):
     Z = torch.nn.functional.pad(Z, (0, pad_amount), mode='constant', value=0)
 
     
-    to_add = 10**-4
+    to_add = 10**-5
     
     T = c(X,Y,Z)
     err_rel = torch.norm(T - T_star)/torch.norm(T_star)
@@ -360,7 +359,7 @@ def boot_strap_init_assym(T_star,X_star, Y_star, Z_star, tol, n,r):
         
         
 
-
+    #return torch.randn(m,r),torch.randn(n,r),torch.randn(p,r)
     return X,Y,Z
 
 
@@ -408,11 +407,13 @@ def run_methods(methods_test, keys, n, r_true, target_d, identity, device,
         mask[mask_indices] = 1 
         
         y_true = y_true + np.linalg.norm(y_true)*np.random.normal(size=y_true.shape[0])*mask
-  
- 
           
         if symmetric:
             X0, Y0,Z0 = boot_strap_init(T_star, X_star,radius_init, n,r)
+            T = c(X0,X0,X0)
+            err = torch.norm(T - T_star)
+            print('DDDD')
+            print( err/(torch.norm(T_star)))
         
         else:
             X0, Y0, Z0 = boot_strap_init_assym(T_star, X_star, Y_star, Z_star, radius_init, n,r)
@@ -436,12 +437,9 @@ def run_methods(methods_test, keys, n, r_true, target_d, identity, device,
                     
                 err = torch.norm(T - T_star)
                 rel_err = err/(torch.norm(T_star))
-                if torch.isnan(err) or rel_err > 1:
-                    errs = errs +  [1 for _ in range(n_iter - len(errs)) ]
-                    break
              
                     
-                if k%20 == 0:
+                if True:
                     print(method)
                     print(k)
                     print(rel_err)  
@@ -508,22 +506,22 @@ def run_methods(methods_test, keys, n, r_true, target_d, identity, device,
         
         
 
-n = 5
+n = 20
 r_true = 2
 target_d = n * r_true * 20
-symmetric = False
-
+symmetric = True
 identity = False 
 device = 'cpu'
 spectral_init = False
 base_dir = os.path.dirname(os.path.abspath(__file__))
 loss_ord = 1
-radius_init = 10**-2  if symmetric else 10**-3
+radius_init = 10**-2 if symmetric else 10**-3
 n_iter = 1000
 
 np.random.seed(42)
 
-keys = [(4,10)]
+keys = [(2,1), (2,10)]
+
 
 methods = [ 'Subgradient descent', 'Levenberg–Marquardt (ours)']
 
