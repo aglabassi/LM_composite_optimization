@@ -343,7 +343,7 @@ def boot_strap_init_assym(T_star,X_star, Y_star, Z_star, tol, n,r):
     Z = torch.nn.functional.pad(Z, (0, pad_amount), mode='constant', value=0)
 
     
-    to_add = 10**-6
+    to_add = 10**-4
     
     T = c(X,Y,Z)
     err_rel = torch.norm(T - T_star)/torch.norm(T_star)
@@ -351,9 +351,9 @@ def boot_strap_init_assym(T_star,X_star, Y_star, Z_star, tol, n,r):
 
     while err_rel <= tol:
         print(err_rel)
-        X  += torch.rand(m,r)*to_add
-        Y  += torch.rand(n,r)*to_add
-        Z  += torch.rand(p,r)*to_add
+        X  += torch.randn(m,r)*to_add
+        Y  += torch.randn(n,r)*to_add
+        Z  += torch.randn(p,r)*to_add
         
         T = c(X,Y,Z) 
         err_rel = torch.norm(T - T_star)/torch.norm(T_star)
@@ -439,14 +439,13 @@ def run_methods(methods_test, keys, n, r_true, target_d, identity, device,
                 if torch.isnan(err) or rel_err > 1:
                     errs = errs +  [1 for _ in range(n_iter - len(errs)) ]
                     break
-                if rel_err < 10**-15:
-                    errs = errs +  [10**-15 for _ in range(n_iter - len(errs)) ]
-                    break
+             
                     
-
-                print(method)
-                print(rel_err)  
-                print('---')
+                if k%20 == 0:
+                    print(method)
+                    print(k)
+                    print(rel_err)  
+                    print('---')
                 errs.append(rel_err)
                 
                
@@ -504,27 +503,27 @@ def run_methods(methods_test, keys, n, r_true, target_d, identity, device,
             full_path = os.path.join(base_dir, file_name)
             outputs[method] = errs
             
-            
     return outputs
                 
         
         
 
-n = 20
+n = 5
 r_true = 2
 target_d = n * r_true * 20
 symmetric = False
+
 identity = False 
 device = 'cpu'
 spectral_init = False
 base_dir = os.path.dirname(os.path.abspath(__file__))
-loss_ord = 0.5
-radius_init = 10**-2  if symmetric else 10**-2
+loss_ord = 1
+radius_init = 10**-2  if symmetric else 10**-3
 n_iter = 1000
 
 np.random.seed(42)
 
-keys = [(2,1), (2,10), (4,1), (4,10)]
+keys = [(4,10)]
 
 methods = [ 'Subgradient descent', 'Levenberg–Marquardt (ours)']
 
