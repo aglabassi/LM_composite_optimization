@@ -102,7 +102,7 @@ def sample_symmetric_matrix_on_boundary(M, eps):
 
 
 def trial_execution_matrix(trials, n, r_true, d, keys, init_radius_ratio, T, loss_ord, base_dir, methods, symmetric=True, identity=False, corr_factor=0,
-                           gamma=10**-8, lambda_=0.00001, q=0.97):
+                           gamma=10**-8, lambda_=0.00001, q=0.97, geom_decay=False):
     
     for trial in trials:
         A, A_adj = create_rip_transform(n, d, identity)
@@ -116,7 +116,8 @@ def trial_execution_matrix(trials, n, r_true, d, keys, init_radius_ratio, T, los
             else:
                 M_true = X_true @ Y_true.T
                 
-                
+            M_corrupted = np.random.rand(n,n)
+            y_corrupted = A(M_corrupted)
                 
             y_true = A(M_true)
             num_ones = int(y_true.shape[0]*corr_factor)
@@ -124,15 +125,18 @@ def trial_execution_matrix(trials, n, r_true, d, keys, init_radius_ratio, T, los
             mask = np.zeros(y_true.shape[0])
             mask[mask_indices] = 1
 
-            y_true = y_true + np.linalg.norm(y_true)*np.random.normal(size=y_true.shape[0])*mask
-  
-     
+    
+            
+            
+        
+
+            #y_true = y_true + np.linalg.norm(y_true)*np.random.normal(size=y_true.shape[0])*mask
+            y_true = (1-mask)*y_true + mask*y_corrupted
   
             pert = np.random.rand(*M_true.shape)
             if symmetric:
                 pert = (pert + pert.T) /2
-            Z0 = M_true + (init_radius_ratio* np.linalg.norm(M_true)/ (np.linalg.norm(pert))) * pert
-            
+                
             Z0 = sample_symmetric_matrix_on_boundary(M_true, init_radius_ratio)
             
     
@@ -153,11 +157,11 @@ def trial_execution_matrix(trials, n, r_true, d, keys, init_radius_ratio, T, los
                 if symmetric:
                     losses = matrix_recovery(X0, M_true, T, A, A_adj, y_true, loss_ord, 
                                              r_true, cond_number, method, base_dir, trial, gamma_init=gamma, 
-                                             damping_init=lambda_, q=q)
+                                             damping_init=lambda_, q=q, geom_decay=geom_decay)
                 else:
                     losses = matrix_recovery_assymetric(X0, Y0, X_true, Y_true, M_true, T, A, A_adj, y_true, loss_ord, 
                                                         r_true, cond_number, method, base_dir, trial, gamma_init=gamma, 
-                                                        damping_init=lambda_, q=q)
+                                                        damping_init=lambda_, q=q, geom_decay=geom_decay)
                 
                 outputs[method]= losses 
     return outputs
@@ -666,7 +670,7 @@ def truncate_svd(matrix, k):
 
 def matrix_recovery(
     X0, M_star, n_iter, A, A_adj, y_true, loss_ord, r_true,
-    cond_number, method, base_dir, trial, gamma_init=0.00001, damping_init=0.1, q=0.8 ):
+    cond_number, method, base_dir, trial, gamma_init=10**-8, damping_init=10**-5, q=0.98, geom_decay=False):
     """
     If restarted=False, run the original (non-restarted) method you provided.
     If restarted=True, run a 'Restarted Levenberg-Marquardt Subgradient Method'.
@@ -787,10 +791,8 @@ def matrix_recovery(
 
         elif method in ['Gauss-Newton', 'Levenberg–Marquardt (ours)']:
 
-            if method == 'Levenberg–Marquardt (ours)':
-                damping = np.sqrt( h(c(X))) /4000 if loss_ord == 2 else h(c(X))/100000
-                #damping = np.linalg.norm(c(X) - M_star)
-                #damping = damping_init*q**t #decaying parameter
+            if method == 'Levenberg–Marquardt (ours)': 
+                damping =  damping_init*q**t  if geom_decay else  np.sqrt( h(c(X))) /4000 if loss_ord == 2 else h(c(X))/100000
             else:
                 damping = 0
             preconditionned_g = compute_preconditionner_applied_to_g_bm(X, g, damping)
@@ -810,7 +812,7 @@ def matrix_recovery(
             raise NotImplementedError
 
         # Gradient-like update
-        #gamma = gamma_init*(q**t) #geometrically decaying stepsize
+        gamma = gamma_init*(q**t)  if geom_decay else gamma#geometrically decaying stepsize
         #gamma = 0.1*gamma
         X = X - gamma*preconditionned_G
 

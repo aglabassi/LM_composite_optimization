@@ -20,7 +20,7 @@ def load(filename):
     return obj
 
 if __name__ == "__main__":
-    run = False
+    run = True
     problem = 'Burer-Monteiro' #or 'Symmetric CP'
     #problem = 'Asymmetric Matrix'
     #problem = 'Symmetric CP'
@@ -41,6 +41,7 @@ if __name__ == "__main__":
     methods_all = methods
 
     init_radius_ratio =10**-3
+    end_ratio = 10**-8
     keys_all = [(2,1)] #keep one
     keys_test = keys_all
     
@@ -59,6 +60,7 @@ if __name__ == "__main__":
                 for _ in range(trials):
                     corr_factor = (corr_range[1] -corr_range[0]) *np.random.rand() + corr_range[0]
                     d = d_trial
+                   
                     if problem == 'Burer-Monteiro':
                         outputs = trial_execution_matrix(range(0, 1), 
                                                          n, r_true, 
@@ -69,7 +71,7 @@ if __name__ == "__main__":
                                                          methods_test, 
                                                          True,
                                                          False,
-                                                         corr_factor)
+                                                         corr_factor, geom_decay=True)
                     elif problem == 'Asymmetric Matrix':
                         outputs = trial_execution_matrix(range(0, 1), 
                                                          n, r_true, 
@@ -80,7 +82,7 @@ if __name__ == "__main__":
                                                          methods_test, 
                                                          False,
                                                          False,
-                                                         corr_factor)
+                                                         corr_factor, geom_decay=True)
                     elif problem == 'Symmetric CP':
                         outputs = run_methods(
                             methods_test, 
@@ -90,7 +92,7 @@ if __name__ == "__main__":
                         
                     
                     for method in methods:
-                        if outputs[method][-1] <= 1e-8:
+                        if outputs[method][-1] <= end_ratio:
                             success_counters[method] +=1
                             
                 for method in methods:
