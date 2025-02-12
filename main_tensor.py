@@ -1,559 +1,596 @@
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Author: Abdel 
+"""
+Author: Abdel Ghani Labassi
+Date: February 12th 2025
 
-import torch
+This code implements a unified scheme that works for both CP–tensor and 
+matrix factorization models. For CP tensor factorization we have
+    T = CP(X,Y,Z) = einsum('ir,jr,kr->ijk', X, Y, Z),
+while for matrix factorization one may consider
+    T = XX^T   (symmetric)  or   T = XY^T   (asymmetric).
+A Boolean flag "tensor" is used to switch between these models.
+"""
+
 import os
-from utils import collect_compute_mean, plot_losses_with_styles
 import numpy as np
+import torch
+import torch.nn.functional as F
+from utils import collect_compute_mean, plot_losses_with_styles
 
-# Ensure double precision globally where possible
+# Ensure double precision globally where possible.
 torch.set_default_dtype(torch.float64)
 
-class TensorMeasurementOperator:
-    def __init__(self, n1, n2, n3, m, identity=False):
-        self.n1 = n1
-        self.n2 = n2
-        self.n3 = n3
-        self.m = m
-        self.identity = identity
-        
-        # Generate m measurement tensors Ai ~ N(0, 1/m) in double precision
-        self.A_tensors = torch.randn(m, n1, n2, n3, device=device, dtype=torch.float64) / torch.sqrt(torch.tensor(m, dtype=torch.float64, device=device))
+# Set device to GPU if available.
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print(f"Running on device: {device}")
 
-    def A(self, X):
-        if self.identity:
-            # Flatten X and return
-            return X.flatten()
-        else:
-            # Apply operator A(X⋆) = {⟨Ai, X ⟩}_m
-            # einstein sum: i for A index, jkl for A dimension, jkl for X dimension
-            inner_products = torch.einsum('ijkl,jkl->i', self.A_tensors, X)
-            return inner_products
 
-    def A_adj(self, y):
-        if self.identity:
-            # Reshape y back into the original tensor shape
-            return y.reshape(self.n1, self.n2, self.n3)
-        else:
-            # Compute the adjoint A*(y) = sum(y_i * Ai)
-            y_expanded = y.reshape(self.m, 1, 1, 1)  # Expand y to match dimensions
-            adjoint = torch.sum(y_expanded * self.A_tensors, dim=0)
-            return adjoint
-
-def c(X, Y, Z):
+###############################################################################
+# 1. CP Tensor Reconstruction
+###############################################################################
+def cp_reconstruct(X, Y, Z):
     """
-    Computes the CP tensor from three factor matrices without using tensorly.
-
+    Reconstructs the CP tensor from three factor matrices using einsum.
+    
     Args:
-        X (torch.Tensor): Factor matrix for mode-1 (shape: I x R)
-        Y (torch.Tensor): Factor matrix for mode-2 (shape: J x R)
-        Z (torch.Tensor): Factor matrix for mode-3 (shape: K x R)
-
+        X (torch.Tensor): Factor matrix for mode 1 of shape (I, R).
+        Y (torch.Tensor): Factor matrix for mode 2 of shape (J, R).
+        Z (torch.Tensor): Factor matrix for mode 3 of shape (K, R).
+    
     Returns:
-        torch.Tensor: Reconstructed CP tensor of shape (I, J, K)
+        torch.Tensor: A tensor of shape (I, J, K).
     """
-    I, R1 = X.shape
-    J, R2 = Y.shape
-    K, R3 = Z.shape
-    
-    assert R1 == R2 == R3, "Factor matrices must have the same rank (R)"
+    return torch.einsum('ir,jr,kr->ijk', X, Y, Z)
 
-    # Compute outer products and sum over rank R
-    tensor = sum(
-        X[:, r].view(I, 1, 1) * 
-        Y[:, r].view(1, J, 1) * 
-        Z[:, r].view(1, 1, K) 
-        for r in range(R1)
-    )
 
-    return tensor
-
-def nabla_c_transpose_g_sym(X, v):
+###############################################################################
+# 2. Unified Local Initialization
+###############################################################################
+def unified_local_init(T_star, factors, dims, tol, r, symmetric, tensor=True):
     """
-    Thank you GPT O 
-    Compute (nabla c(X))^T g for given X and g.
+    Performs local initialization for both CP–tensor and matrix factorization.
     
-    Parameters
-    ----------
-    X : torch.Tensor of shape (n, r)
-        Factor matrix with r components, each of length n.
-    v : torch.Tensor of shape (n, n, n)
-        The 3D tensor 'g'.
-
-    Returns
-    -------
-    torch.Tensor of shape (n, r)
-        The result of (nabla c(X))^T g.
+    Args:
+        T_star (torch.Tensor): The target tensor (or matrix).
+        factors (list[torch.Tensor]): 
+            - If tensor==True:
+                • symmetric: [X_star] 
+                • asymmetric: [X_star, Y_star, Z_star]
+            - If tensor==False:
+                • symmetric: [X_star]
+                • asymmetric: [X_star, Y_star]
+        dims (list[int]): The row–dimensions of each factor.
+        tol (float): Tolerance for the relative error.
+        r (int): Target number of columns (rank) after padding.
+        symmetric (bool): Whether the model is symmetric.
+        tensor (bool): If True, use CP–tensor reconstruction; else use matrix factorization.
+    
+    Returns:
+        list[torch.Tensor]: The updated factor matrices.
     """
-    n, r = X.shape
-                   
-    # Let's use einsum directly:
-    A = torch.einsum('ijk,il,jl->kl', v, X, X)  # sum over i,j
-    # A: (k,l)
+    new_factors = []
+    for fac in factors:
+        pad_amount = r - fac.shape[1]
+        new_factors.append(F.pad(fac, (0, pad_amount), mode='constant', value=0))
+    
+    if tensor:
+        if symmetric:
+            T = cp_reconstruct(new_factors[0], new_factors[0], new_factors[0])
+        else:
+            T = cp_reconstruct(new_factors[0], new_factors[1], new_factors[2])
+    else:
+        if symmetric:
+            T = new_factors[0] @ new_factors[0].T
+        else:
+            T = new_factors[0] @ new_factors[1].T
+    
+    err_rel = torch.norm(T - T_star) / torch.norm(T_star)
+    to_add = 1e-5 
+    while err_rel <= tol:
+        if tensor:
+            if symmetric:
+                new_factors[0] = new_factors[0] + torch.rand(dims[0], r, device=new_factors[0].device) * to_add
+            else:
+                new_factors[0] = new_factors[0] + torch.randn(dims[0], r, device=new_factors[0].device) * to_add
+                new_factors[1] = new_factors[1] + torch.randn(dims[1], r, device=new_factors[1].device) * to_add
+                new_factors[2] = new_factors[2] + torch.randn(dims[2], r, device=new_factors[2].device) * to_add
+        else:
+            if symmetric:
+                new_factors[0] = new_factors[0] + torch.rand(dims[0], r, device=new_factors[0].device) * to_add
+            else:
+                new_factors[0] = new_factors[0] + torch.randn(dims[0], r, device=new_factors[0].device) * to_add
+                new_factors[1] = new_factors[1] + torch.randn(dims[1], r, device=new_factors[1].device) * to_add
+        
+        if tensor:
+            if symmetric:
+                T = cp_reconstruct(new_factors[0], new_factors[0], new_factors[0])
+            else:
+                T = cp_reconstruct(new_factors[0], new_factors[1], new_factors[2])
+        else:
+            if symmetric:
+                T = new_factors[0] @ new_factors[0].T
+            else:
+                T = new_factors[0] @ new_factors[1].T
+        
+        err_rel = torch.norm(T - T_star) / torch.norm(T_star)
+    return new_factors
 
-    B = torch.einsum('ijk,il,kl->jl', v, X, X)  # sum over i,k
 
-    C = torch.einsum('ijk,jl,kl->il', v, X, X) 
-
-    out = A + B + C  # (n,r)
-
-    return out
-
-
-def nabla_c_transpose_g_assym(X, Y,Z, v):
+###############################################################################
+# 3. Helper: Split a Flattened Tensor into Blocks
+###############################################################################
+def split(concatenated, shapes):
     """
-    Thank you GPT O 
-    Compute (nabla c(X))^T g for given X and g.
+    Splits a flattened tensor into blocks with specified shapes.
     
-    Parameters
-    ----------
-    X : torch.Tensor of shape (n1, r)
-    Y:  torch.Tensor of shape (n2, r)
-    Z:  torch.Tensor of shape (n3, r)
-        Factor matrix with r components, each of length n.
-    g : torch.Tensor of shape (n, n, n)
-        The 3D tensor 'g'.
-
-    Returns
-    -------
-    torch.Tensor of shape (n1, r). (n2,r) and (n3,r)
-        The result of (nabla c(X))^T g.
+    Args:
+        concatenated (torch.Tensor): A 1D tensor.
+        shapes (list[tuple]): List of shapes, e.g. [(m, r), (n, r), ...].
+    
+    Returns:
+        tuple[torch.Tensor]: The split tensors.
     """
-    
-    
-    A = torch.einsum('ijk,jl,kl->il', v, Y, Z) # sum over i,j
-    
-    B = torch.einsum('ijk,il,kl->jl', v, X, Z)  # sum over i,k
- 
-    C = torch.einsum('ijk,il,jl->kl', v, X, Y)  # sum over j,k
+    output = []
+    start = 0
+    for shape in shapes:
+        numel = np.prod(shape)
+        block = concatenated[start:start + numel].reshape(shape)
+        output.append(block)
+        start += numel
+    return tuple(output)
 
 
-    return A,B,C
-
-
-
-
-def operator_sym(X, XPRIME):
-    # Compute A = X^T X
-    XX = X.T @ X
-    XX_PRIME = XPRIME.T @ X
-    
-    
-   
-
-    # Compute the final result
-    result = 3 * (XPRIME @ (XX*XX)) + 6 * (X @ (XX_PRIME * XX))
-    return result
-
-
-def compute_preconditionner_applied_to_g_cp_sym(X, g, damping, max_iter=100, epsilon=1e-13):
+###############################################################################
+# 4. Unified Linear Operator Function for CG
+###############################################################################
+def unified_operator(update, factors, symmetric, tensor=True):
     """
-    Thanks GPT O
-    Conjugate gradient method. g is shape of X.
-    X, g are PyTorch tensors.
-    operator(X, v) should be defined to return a PyTorch tensor of the same shape as X.
+    Computes the action of the linearized operator (nabla c * nabla c^T)
+    on a search direction “update”. This is used inside the conjugate–gradient solver.
+    
+    For the CP–tensor model (tensor=True):
+      - Symmetric: factors = [X] and
+          A(dX) = 3*(dX @ (XX ∘ XX)) + 6*(X @ ((dX.T @ X) ∘ XX))
+      - Asymmetric: factors = [X, Y, Z] and
+          A(dX, dY, dZ) is computed block–wise.
+    
+    For matrix factorization (tensor=False):
+      - Symmetric: factors = [X] and
+          A(g) = (2*g_mat @ (X.T @ X) + 2*X @ (g_mat.T @ X)).reshape(-1)
+      - Asymmetric: factors = [X, Y] and
+          A(g_x, g_y) is computed as the concatenation of
+              (X @ (g_y.T @ Y) + g_x @ (Y.T @ Y)) and
+              (Y @ (g_x.T @ X) + g_y @ (X.T @ X)).
+    
+    Args:
+        update (torch.Tensor): The update direction (flattened or not).
+        factors (list[torch.Tensor]): 
+            - If tensor==True: [X] for symmetric or [X, Y, Z] for asymmetric.
+            - If tensor==False: [X] for symmetric or [X, Y] for asymmetric.
+        symmetric (bool): Whether the model is symmetric.
+        tensor (bool): If True, CP–tensor formulas are used; otherwise matrix factorization.
+    
+    Returns:
+        torch.Tensor: The result of applying the operator.
     """
-    # Initialize x as a zero tensor like g
-    x = torch.zeros_like(g)
+    if tensor:
+        if symmetric:
+            X = factors[0]
+            dX = update  # same shape as X
+            XX = X.T @ X
+            return 3 * (dX @ (XX * XX)) + 6 * (X @ ((dX.T @ X) * XX))
+        else:
+            X, Y, Z = factors
+            shapes = [X.shape, Y.shape, Z.shape]
+            dX, dY, dZ = split(update, shapes)
+            XX = X.T @ X
+            YY = Y.T @ Y
+            ZZ = Z.T @ Z
+            RES_X = dX @ (YY * ZZ) + X @ ((dY.T @ Y) * ZZ) + X @ (YY * (dZ.T @ Z))
+            RES_Y = dY @ (XX * ZZ) + Y @ ((dX.T @ X) * ZZ) + Y @ (XX * (dZ.T @ Z))
+            RES_Z = dZ @ (XX * YY) + Z @ ((dX.T @ X) * YY) + Z @ (XX * (dY.T @ Y))
+            return torch.cat((RES_X.reshape(-1), RES_Y.reshape(-1), RES_Z.reshape(-1)))
+    else:
+        # Matrix factorization case.
+        if symmetric:
+            X = factors[0]
+            g_mat = update.reshape(X.shape)
+            return (2 * g_mat @ (X.T @ X) + 2 * X @ (g_mat.T @ X))
+        else:
+            X, Y = factors
+            shapes = [X.shape, Y.shape]
+            gx, gy = split(update, shapes)
+            op_x = (X @ (gy.T @ Y) + gx @ (Y.T @ Y)).reshape(-1)
+            op_y = (Y @ (gx.T @ X) + gy @ (X.T @ X)).reshape(-1)
+            return torch.cat((op_x, op_y))
 
-    # Compute initial residual
-    r = g - (operator_sym(X, x) + damping * x)
+
+###############################################################################
+# 5. Generic Conjugate–Gradient Solver
+###############################################################################
+def cg_solve(operator_fn, b, damping, max_iter=100, epsilon=1e-13):
+    """
+    Generic conjugate gradient solver.
+    
+    Solves A(x) + damping*x = b for x.
+    
+    Args:
+        operator_fn (callable): A function mapping x to A(x) (same shape as x).
+        b (torch.Tensor): Right-hand side.
+        damping (float): Damping parameter.
+        max_iter (int): Maximum iterations.
+        epsilon (float): Tolerance on the residual norm.
+    
+    Returns:
+        torch.Tensor: The solution vector x.
+    """
+    x = torch.zeros_like(b)
+    r = b - (operator_fn(x) + damping * x)
     p = r.clone()
-
-    # Compute initial residual norm squared
     rs_old = (r * r).sum()
-
-    info = {
-        'iterations': 0,
-        'residual_norm': torch.sqrt(rs_old).item()
-    }
-
     for i in range(max_iter):
-        Ap = operator_sym(X, p) + damping * p
-        pAp = (p * Ap).sum()
-        alpha = rs_old / pAp
-
+        Ap = operator_fn(p) + damping * p
+        alpha = rs_old / (p * Ap).sum()
         x = x + alpha * p
         r = r - alpha * Ap
         rs_new = (r * r).sum()
-
-        info['iterations'] = i + 1
-        info['residual_norm'] = torch.sqrt(rs_new).item()
-
-        if rs_new.sqrt() <= epsilon:
+        if torch.sqrt(rs_new) <= epsilon:
             break
-
         p = r + (rs_new / rs_old) * p
         rs_old = rs_new
-
     return x
 
 
+###############################################################################
+# 6. Measurement Operator Class
+###############################################################################
+class GaussianLinearMeasurementOperator:
+    def __init__(self, n1, n2, n3, m, identity=False, tensor=True):
+        """
+        For CP–tensor models (tensor=True) the underlying measurement tensor
+        is of shape (m, n1, n2, n3). For matrix factorization (tensor=False), it is
+        of shape (m, n1, n2) (with n2=n1 in the symmetric case).
+        """
+        self.identity = identity
+        self.m = m
+        self.tensor = tensor
+        if tensor:
+            self.n1 = n1; self.n2 = n2; self.n3 = n3
+            shape = (m, n1, n2, n3)
+        else:
+            self.n1 = n1; self.n2 = n2  # for symmetric, n2 equals n1.
+            shape = (m, n1, n2)
+        self.A_tensors = torch.randn(*shape, device=device) / torch.sqrt(torch.tensor(m, device=device, dtype=torch.float64))
 
-def operator_assym(X, Y, Z, XPRIME, YPRIME, ZPRIME):
-    # Shape assumptions (for example):
-    # X, XPRIME: (n, d), so X.T @ X -> (d, d), etc.
-    
-    XX = X.T @ X            # (d, d)
-    YY = Y.T @ Y            # (d, d)
-    ZZ = Z.T @ Z            # (d, d)
+    def A(self, X):
+        if self.identity:
+            return X.flatten()
+        else:
+            # For CP–tensor: X has 3 indices; for matrix factorization: 2 indices.
+            if self.tensor:
+                return torch.einsum('ijkl,jkl->i', self.A_tensors, X)
+            else:
+                return torch.einsum('ijk,jk->i', self.A_tensors, X)
 
-    XX_PRIME = XPRIME.T @ X # (d, d)
-    YY_PRIME = YPRIME.T @ Y # (d, d)
-    ZZ_PRIME = ZPRIME.T @ Z # (d, d)
-    
-    # -- Each RES_* is a sum of three terms, all shaped (n, d).
-    # -- We keep a symmetrical pattern: 
-    #    1) prime variable on the left, unprimed on the right
-    #    2) unprimed variable on the left, "prime" factor in the middle, unprimed on the right
-    #    etc.
-    #
-    # Notice that each term is: 
-    #    <something of shape (n, d)> @ (<something of shape (d, d)> * <something else of shape (d, d)>)
-    # i.e. standard matrix multiplication on the outside, but elementwise ("*") on the inside.
-
-    RES_X = (
-        XPRIME @ (YY * ZZ)            # prime-X times (unprimed Y & Z)
-        + X @ (YY_PRIME * ZZ)         # unprimed X times (prime-Y, unprimed Z)
-        + X @ (YY * ZZ_PRIME)         # unprimed X times (unprimed Y, prime-Z)
-    )
-
-    RES_Y = (
-        YPRIME @ (XX * ZZ)            # prime-Y times (unprimed X & Z)
-        + Y @ (XX_PRIME * ZZ)         # unprimed Y times (prime-X, unprimed Z)
-        + Y @ (XX * ZZ_PRIME)         # unprimed Y times (unprimed X, prime-Z)
-    )
-
-    RES_Z = (
-        ZPRIME @ (XX * YY)            # prime-Z times (unprimed X & Y)
-        + Z @ (XX_PRIME * YY)         # unprimed Z times (prime-X, unprimed Y)
-        + Z @ (XX * YY_PRIME)         # unprimed Z times (unprimed X, prime-Y)
-    )
-
-    return RES_X, RES_Y, RES_Z
+    def A_adj(self, y):
+        if self.identity:
+            # Identity operator: simply reshape.
+            return y
+        else:
+            if self.tensor:
+                y_expanded = y.reshape(self.m, 1, 1, 1)
+                return torch.sum(y_expanded * self.A_tensors, dim=0)
+            else:
+                y_expanded = y.reshape(self.m, 1, 1)
+                return torch.sum(y_expanded * self.A_tensors, dim=0)
 
 
-
-def compute_preconditionner_applied_to_g_cp_assym(X, Y, Z, grad, damping, max_iter=100, epsilon=1e-14):
+###############################################################################
+# 7. Unified Gradient Transpose Function
+###############################################################################
+def unified_nabla_c_transpose_g(factors, v, symmetric, tensor=True):
     """
-    Thanks GPT O
-    Conjugate gradient method. g is shape of X.
-    X, g are PyTorch tensors.
-    operator(X, v) should be defined to return a PyTorch tensor of the same shape as X.
-    """
-    # Initialize x as a zero tensor like g
-    sizes = [ X.shape, Y.shape, Z.shape ]
-    gx,gy,gz = split(grad, sizes)
+    Computes (nabla c)^T * v for both CP–tensor and matrix factorization.
     
-    x = torch.zeros_like(gx)
-    y = torch.zeros_like(gy)
-    z = torch.zeros_like(gz)
-
-    # Compute initial residual
-    r = torch.cat((gx,gy,gz)) - ( torch.cat(operator_assym(X,Y,Z,x,y,z)) + damping * torch.cat((x, y,z)))
-    p = r.clone()
-
-    # Compute initial residual norm squared
-    rs_old = (r * r).sum()
-
-    info = {
-        'iterations': 0,
-        'residual_norm': torch.sqrt(rs_old).item()
-    }
-
-    for i in range(max_iter):
-        px,py,pz = split(p , sizes)
-        Ap = torch.cat(operator_assym(X,Y,Z,px,py,pz)) + damping * torch.cat((px,py,pz))
-        pAp = (p * Ap).sum()
-        alpha = rs_old / pAp
-
-        x = x + alpha * px
-        y = y + alpha * py
-        z = z + alpha * pz
-        
-        r = r - alpha * Ap
-        rs_new = (r * r).sum()
-
-        info['iterations'] = i + 1
-        info['residual_norm'] = torch.sqrt(rs_new).item()
-
-        if rs_new.sqrt() <= epsilon:
-            break
-
-        p = r + (rs_new / rs_old) * p
-        rs_old = rs_new
-
-    return x,y,z
-
-
-
-
-def boot_strap_init(T_star,X_star, tol, n, r):
-        
+    For CP–tensor (tensor=True):
+      - Symmetric: returns a tensor of shape (n, r) computed via three Einstein sums.
+      - Asymmetric: returns a tuple (A, B, C).
     
-    err_rel = 0
+    For matrix factorization (tensor=False):
+      - Symmetric: returns ((v + v^T) @ X).reshape(-1)
+      - Asymmetric: returns ( (v @ Y).reshape(-1), (v^T @ X).reshape(-1) )
     
-    X = X_star.clone()
-    pad_amount = r - X_star.shape[1]
-    X = torch.nn.functional.pad(X, (0, pad_amount), mode='constant', value=0)
-    
-
-    
-    to_add = 10**-5
-    
-    T = c(X,X,X)
-    err_rel = torch.norm(T - T_star)/torch.norm(T_star)
-            
-    print(err_rel)
-
-    while err_rel <= tol:
-        X  += torch.rand(n,r)*to_add
-        
-        T = c(X,X,X) 
-        err_rel = torch.norm(T - T_star)/torch.norm(T_star)
-        print(err_rel)
-    #return torch.randn(n,r),torch.randn(n,r),torch.randn(n,r)
-    return X,X,X
-    
-
-def boot_strap_init_assym(T_star,X_star, Y_star, Z_star, tol, n1,n2,n3, r):
-    
-    X = X_star.clone()
-    pad_amount = r - X_star.shape[1]
-    X = torch.nn.functional.pad(X, (0, pad_amount), mode='constant', value=0)
-    
-        
-    Y = Y_star.clone()
-    pad_amount = r - Y_star.shape[1]
-    Y = torch.nn.functional.pad(Y, (0, pad_amount), mode='constant', value=0)
-        
-    Z = Z_star.clone()
-    pad_amount = r - Z_star.shape[1]
-    Z = torch.nn.functional.pad(Z, (0, pad_amount), mode='constant', value=0)
-
-    
-    to_add = 10**-5
-    
-    T = c(X,Y,Z)
-    err_rel = torch.norm(T - T_star)/torch.norm(T_star)
-
-
-    while err_rel <= tol:
-        print(err_rel)
-        X  += torch.randn(n1,r)*to_add
-        Y  += torch.randn(n2,r)*to_add
-        Z  += torch.randn(n3,r)*to_add
-        
-        T = c(X,Y,Z) 
-        err_rel = torch.norm(T - T_star)/torch.norm(T_star)
-        
-        
-
-    #return torch.randn(m,r),torch.randn(n,r),torch.randn(p,r)
-    return X,Y,Z
-
-
-def split(concatenated, shapes):
-    """
-    Splits a single concatenated tensor along dimension 0 into multiple sub-tensors 
-    based on a list of shapes. Each shape is expected to be a tuple (size_along_dim_0, ...).
-
     Args:
-        concatenated (torch.Tensor): The concatenated tensor (e.g. shape (m + n + p, r)).
-        shapes (list[tuple]): A list/tuple of shapes, e.g. [(m, r), (n, r), (p, r)].
-
+        factors (list[torch.Tensor]): See description.
+        v (torch.Tensor): 
+            For tensor==True: 
+                • symmetric: shape (n, n, n)
+                • asymmetric: shape (n1, n2, n3)
+            For tensor==False:
+                • symmetric: either a flattened or (n, n) tensor.
+                • asymmetric: either flattened or of shape (n1, n2).
+        symmetric (bool): Whether the model is symmetric.
+        tensor (bool): If True, CP–tensor formulas are used; else matrix factorization.
+    
     Returns:
-        tuple[torch.Tensor]: A tuple of tensors, each with the corresponding shape 
-                             from 'shapes', split along dim=0.
+        For symmetric: torch.Tensor of shape (n, r) or flattened.
+        For asymmetric: tuple of tensors.
     """
-    output_tensors = []
-    start_index = 0
-    
-    for shape in shapes:
-        size_along_dim0 = shape[0]  # e.g. m, n, or p
-        # slice along dim=0
-        split_tensor = concatenated[start_index : start_index + size_along_dim0]
-        output_tensors.append(split_tensor.reshape(shape))  
-        start_index += size_along_dim0
-
-    return tuple(output_tensors)
-
-
-def run_methods(methods_test, keys, n1,n2,n3, r_true, target_d, identity, device, 
-                n_iter, spectral_init, base_dir, loss_ord, radius_init, symmetric,
-                corr_level=0, q=0.9, lambda_ = 0.0001, gamma = 0.001): 
-    
-    if symmetric:
-        measurement_operator = TensorMeasurementOperator(n1, n1, n1, target_d, identity=identity)
-    
+    if tensor:
+        X, Y, Z = factors
+        A = torch.einsum('ijk,jl,kl->il', v, Y, Z)
+        B = torch.einsum('ijk,il,kl->jl', v, X, Z)
+        C = torch.einsum('ijk,il,jl->kl', v, X, Y)
+        return A + B + C if symmetric else (A, B, C) 
     else:
-        measurement_operator = TensorMeasurementOperator(n1,n2,n3, target_d, identity=identity)
+        if symmetric:
+            X = factors[0]
+            if v.dim() == 1:
+                v_mat = v.reshape(X.shape[0], X.shape[0])
+            else:
+                v_mat = v
+            return ((v_mat + v_mat.T) @ X)
+        else:
+            X, Y = factors
+            if v.dim() == 1:
+                v_mat = v.reshape(X.shape[0], Y.shape[0])
+            else:
+                v_mat = v
+            g_x = (v_mat @ Y)
+            g_y = (v_mat.T @ X)
+            return (g_x, g_y)
 
-    for key in keys:
-        outputs = dict()    
-        r, kappa = key
-        
-        ux, _ = torch.linalg.qr(torch.rand(n1, r_true, device=device, dtype=torch.float64))
-        vx, _ = torch.linalg.qr(torch.rand(r_true, r_true, device=device, dtype=torch.float64))
-        
-        # Create singular values as double
-        singular_values = torch.linspace(1.0, 1/kappa, r_true, device=device, dtype=torch.float64)
+
+###############################################################################
+# 8. Unified Run Methods Function
+###############################################################################
+def run_methods(methods_test, experiment_setups, n1, n2, n3, r_true, m, identity, device,
+                n_iter, spectral_init, base_dir, loss_ord, initial_relative_error, symmetric,
+                tensor=True, corr_level=0, q=0.9, lambda_=0.0001, gamma=0.001):
+    """
+    Runs the various descent methods.
+    
+    Depending on the Boolean flag "tensor", the reconstruction, initialization,
+    gradient and operator routines are selected to handle either CP–tensor or
+    matrix factorization.
+    """
+    # Initialize measurement operator.
+    # For CP–tensor: use (n1,n2,n3); for matrix factorization:
+    #   symmetric: use (n1,n1) and asymmetric: use (n1,n2)
+    if tensor:
+        if symmetric:
+            measurement_operator = GaussianLinearMeasurementOperator(n1, n1, n1, m, identity=identity, tensor=True)
+        else:
+            measurement_operator = GaussianLinearMeasurementOperator(n1, n2, n3, m, identity=identity, tensor=True)
+    else:
+        if symmetric:
+            measurement_operator = GaussianLinearMeasurementOperator(n1, n1, None, m, identity=identity, tensor=False)
+        else:
+            measurement_operator = GaussianLinearMeasurementOperator(n1, n2, None, m, identity=identity, tensor=False)
+    
+    outputs = dict()
+    for experiment_setup in experiment_setups:
+        r, kappa = experiment_setup
+        print("=" * 80)
+        print(f"Experiment Setup: r = {r}, kappa = {kappa}")
+        print("=" * 80)
+        # Construct ground‐truth factors.
+        ux, _ = torch.linalg.qr(torch.rand(n1, r_true, device=device))
+        vx, _ = torch.linalg.qr(torch.rand(r_true, r_true, device=device))
+        singular_values = torch.linspace(1.0, 1/kappa, r_true, device=device)
         S = torch.diag(singular_values)
-        
-        
-                
-
-        # Construct X_star in double
         X_star = ux @ S @ vx.T
-        
-        if symmetric:
-            T_star = c(X_star,X_star, X_star)
+
+        if tensor:
+            if symmetric:
+                T_star = cp_reconstruct(X_star, X_star, X_star)
+            else:
+                uy, _ = torch.linalg.qr(torch.rand(n2, r_true, device=device))
+                vy, _ = torch.linalg.qr(torch.rand(r_true, r_true, device=device))
+                uz, _ = torch.linalg.qr(torch.rand(n3, r_true, device=device))
+                vz, _ = torch.linalg.qr(torch.rand(r_true, r_true, device=device))
+                Y_star = uy @ S @ vy.T
+                Z_star = uz @ S @ vz.T
+                T_star = cp_reconstruct(X_star, Y_star, Z_star)
         else:
-            uy, _ = torch.linalg.qr(torch.rand(n2, r_true, device=device, dtype=torch.float64))
-            vy, _ = torch.linalg.qr(torch.rand(r_true, r_true, device=device, dtype=torch.float64))
-            uz, _ = torch.linalg.qr(torch.rand(n3, r_true, device=device, dtype=torch.float64))
-            vz, _ = torch.linalg.qr(torch.rand(r_true, r_true, device=device, dtype=torch.float64))
-            Y_star  = uy @ S @ vy.T
-            Z_star =  uz @ S @ vz.T
-            T_star = c(X_star, Y_star, Z_star)
-            
-        
-        y_true =  measurement_operator.A(T_star )
-        num_ones = int(y_true.shape[0]*corr_level)
-        mask_indices = np.random.choice(y_true.shape[0], size=num_ones, replace=False)
-        mask = np.zeros(y_true.shape[0])
-        mask[mask_indices] = 1 
-        
-        y_true = y_true + np.linalg.norm(y_true)*np.random.normal(size=y_true.shape[0])*mask
-          
-        if symmetric:
-            X0, Y0,Z0 = boot_strap_init(T_star, X_star,radius_init, n1,r)
-            T = c(X0,X0,X0)
-            err = torch.norm(T - T_star)
-        
+            if symmetric:
+                T_star = X_star @ X_star.T
+            else:
+                # For asymmetric matrix factorization, construct a second factor.
+                uy, _ = torch.linalg.qr(torch.rand(n2, r_true, device=device))
+                Y_star = uy @ S @ vx.T
+                T_star = X_star @ Y_star.T
+
+        y_true = measurement_operator.A(T_star)
+        # Inject noise if desired.
+        if corr_level > 0:
+            num_ones = int(y_true.shape[0] * corr_level)
+            mask_indices = np.random.choice(y_true.shape[0], size=num_ones, replace=False)
+            mask = torch.zeros(y_true.shape[0], device=device)
+            mask[mask_indices] = 1
+            noise = torch.randn(y_true.shape[0], device=device)
+            y_true = y_true + torch.norm(y_true) * noise * mask
         else:
-            X0, Y0, Z0 = boot_strap_init_assym(T_star, X_star, Y_star, Z_star, radius_init, n1,n2, n3, r)
-        # Print the relative error
-        sizes = [ X0.shape, Y0.shape, Z0.shape ]
-        for method in methods:
-            X = X0.clone()
-            Y = Y0.clone()
-            Z = Z0.clone()
-            
-        
-            
+            y_true = y_true.to(device)
+
+        # Unified local initialization.
+        if tensor:
+            if symmetric:
+                new_factors = unified_local_init(T_star, [X_star], [n1], initial_relative_error, r, True, tensor=True)
+                X0, Y0, Z0 = new_factors[0], new_factors[0], new_factors[0]
+            else:
+                new_factors = unified_local_init(T_star, [X_star, Y_star, Z_star], [n1, n2, n3],
+                                                  initial_relative_error, r, False, tensor=True)
+                X0, Y0, Z0 = new_factors
+            sizes = [X0.shape, Y0.shape, Z0.shape]
+        else:
+            if symmetric:
+                new_factors = unified_local_init(T_star, [X_star], [n1], initial_relative_error, r, True, tensor=False)
+                X0 = new_factors[0]
+            else:
+                new_factors = unified_local_init(T_star, [X_star, Y_star], [n1, n2],
+                                                  initial_relative_error, r, False, tensor=False)
+                X0, Y0 = new_factors
+            # For matrix factorization, record shapes.
+            sizes = [X0.shape] if symmetric else [X0.shape, Y0.shape]
+
+        for method in methods_test:
+            print(f"\n{'-' * 80}\nStarting method: {method}\n{'-' * 80}")
+            # Reset factors for each method.
+            if tensor:
+                if symmetric:
+                    X = X0.clone()
+                    Y = X.clone()
+                    Z = X.clone()
+                else:
+                    X = X0.clone()
+                    Y = Y0.clone()
+                    Z = Z0.clone()
+            else:
+                if symmetric:
+                    X = X0.clone()
+                else:
+                    X = X0.clone()
+                    Y = Y0.clone()
             errs = []
-            
+
             for k in range(n_iter):
-                
-                
-                if symmetric:
-                    T = c(X,X,X)
+                # Reconstruct the model.
+                if tensor:
+                    if symmetric:
+                        T = cp_reconstruct(X, X, X)
+                    else:
+                        T = cp_reconstruct(X, Y, Z)
                 else:
-                    T = c(X,Y,Z)
-                    
+                    if symmetric:
+                        T = X @ X.T
+                    else:
+                        T = X @ Y.T
+
                 err = torch.norm(T - T_star)
-                rel_err = err/(torch.norm(T_star))
-             
-                    
-                if k%20 == 0:
-                    print(method)
-                    print(k)
-                    print(rel_err)  
-                    print('---')
-                    
-                if rel_err < 10**-14:
-                    errs = errs + [10**-15 for _ in range(k, n_iter)]
+                rel_err = err / torch.norm(T_star)
+                if k % 20 == 0:
+                    print(f"{method:^30} | Iteration: {k:03d} | Relative Error: {rel_err.item():.3e}")
+                if rel_err < 1e-14:
+                    errs += [1e-15 for _ in range(k, n_iter)]
                     break
-                errs.append(rel_err)
-                
-               
-                residual = measurement_operator.A( T) - y_true
-                
+                errs.append(rel_err.item())
+
+                # Compute the residual.
+                residual = measurement_operator.A(T) - y_true
+
+                # Compute subgradient based on loss_ord.
                 if loss_ord == 1:
-                    subgradient_h = measurement_operator.A_adj( torch.sign( residual ) ).view(-1) #L1
-                    h_c_x =  torch.sum(torch.abs( residual )).item()
+                    subgradient_h = measurement_operator.A_adj(torch.sign(residual)).view(-1)
+                    h_c_x = torch.sum(torch.abs(residual)).item()
                 elif loss_ord == 0.5:
-                    subgradient_h = measurement_operator.A_adj( residual/torch.norm(residual) ).view(-1) #L2
-                    h_c_x =  torch.norm(residual)
+                    subgradient_h = measurement_operator.A_adj(residual / torch.norm(residual)).view(-1)
+                    h_c_x = torch.norm(residual).item()
                 elif loss_ord == 2:
-                    subgradient_h = measurement_operator.A_adj( residual).view(-1) #L2 squared
-                    h_c_x =  0.5*torch.norm(residual)**2
-                    
-                    
-                if symmetric:
-                    grad = nabla_c_transpose_g_sym(X, subgradient_h.view(n1,n1,n1))
-                
+                    subgradient_h = measurement_operator.A_adj(residual).view(-1)
+                    h_c_x = 0.5 * (torch.norm(residual) ** 2).item()
+
+                # Compute gradient using the unified gradient-transpose function.
+                if tensor:
+                    if symmetric:
+                        grad = unified_nabla_c_transpose_g([X,X,X], subgradient_h.view(n1, n1, n1), True, tensor=True)
+                    else:
+                        gX, gY, gZ = unified_nabla_c_transpose_g([X, Y, Z], subgradient_h.view(n1, n2, n3), False, tensor=True)
+                        grad = torch.cat((gX.reshape(-1), gY.reshape(-1), gZ.reshape(-1)))
                 else:
-                    grad = torch.cat(nabla_c_transpose_g_assym(X,Y,Z, subgradient_h.view(n1,n2,n3)))
-                
-                if method in  ['Gradient descent', 'Subgradient descent']:
-                    stepsize = h_c_x/(torch.norm(grad)**2)
+                    if symmetric:
+                        grad = unified_nabla_c_transpose_g([X,X], subgradient_h, True, tensor=False)
+                    else:
+                        gX, gY = unified_nabla_c_transpose_g([X, Y], subgradient_h, False, tensor=False)
+                        grad = torch.cat((gX.reshape(-1), gY.reshape(-1)))
+
+                # Choose update strategy.
+                if method in ['Gradient descent', 'Subgradient descent']:
+                    stepsize = h_c_x / (torch.norm(grad) ** 2)
                     preconditioned_grad = grad
                 else:
-                    damping = torch.sqrt(h_c_x) if loss_ord == 2 else h_c_x*10**-5
-                    
-                    damping = 0 if method == 'Gauss-Newton' else damping
-                    #damping = 0 if method == 'Gauss-Newton' else (lambda_*q**k)
-                    
-                    if symmetric:
-                        preconditioned_grad = compute_preconditionner_applied_to_g_cp_sym(X, grad, damping)
+                    damping_val = torch.sqrt(torch.tensor(h_c_x)) if loss_ord == 2 else h_c_x * 1e-5
+                    damping_val = 0 if method == 'Gauss-Newton' else damping_val
+                    # Define the operator for CG depending on model and symmetry.
+                    if tensor:
+                        if symmetric:
+                            operator_fn = lambda x: unified_operator(x, [X, X, X], True, tensor=True)
+                        else:
+                            operator_fn = lambda x: unified_operator(x, [X, Y, Z], False, tensor=True)
                     else:
-                        preconditioned_grad = torch.cat(compute_preconditionner_applied_to_g_cp_assym(X, Y,Z, grad, damping) )
-                    
-        
-                    stepsize = (h_c_x) / (torch.dot(subgradient_h,subgradient_h))
+                        if symmetric:
+                            operator_fn = lambda x: unified_operator(x, [X,X], True, tensor=False)
+                        else:
+                            operator_fn = lambda x: unified_operator(x, [X, Y], False, tensor=False)
+                            
+                    preconditioned_grad = cg_solve(operator_fn, grad, damping_val)
+                    stepsize = h_c_x / (torch.dot(subgradient_h, subgradient_h))
                 
-                #stepsize = gamma*q**(k) #geometric stepsize
-                #stepsize = 0.1
-                
-                if symmetric:
-                    X = X - stepsize * preconditioned_grad
+                # Update the factors.
+                if tensor:
+                    if symmetric:
+                        X = X - stepsize * preconditioned_grad
+                    else:
+                        prgx, prgy, prgz = split(preconditioned_grad, sizes)
+                        X = X - stepsize * prgx
+                        Y = Y - stepsize * prgy
+                        Z = Z - stepsize * prgz
                 else:
-                    prgx, prgy, prgz = split(preconditioned_grad, sizes)
-                    X = X - stepsize * prgx
-                    Y = Y - stepsize * prgy
-                    Z = Z - stepsize * prgz
-            
-            file_name = f'experiments/exptensor{"sym" if symmetric else ""}_{method}_l_{loss_ord}_r*={r_true}_r={r}_condn={kappa}_trial_{0}.csv'
+                    if symmetric:
+                        X = X - stepsize * preconditioned_grad
+                    else:
+                        prgx, prgy = split(preconditioned_grad, sizes)
+                        X = X - stepsize * prgx
+                        Y = Y - stepsize * prgy
+
+            print(f"Method '{method}' completed after {k+1} iterations with final relative error: {errs[-1]:.3e}\n")
+            file_name = f'experiments/exp{"tensor" if tensor else "matrix"}{"sym" if symmetric else ""}_{method}_l_{loss_ord}_r*={r_true}_r={r}_condn={kappa}_trial_0.csv'
             full_path = os.path.join(base_dir, file_name)
-            np.savetxt(full_path, np.array(errs), delimiter=',') 
-            full_path = os.path.join(base_dir, file_name)
+            np.savetxt(full_path, np.array(errs), delimiter=',')
             outputs[method] = errs
-            
     return outputs
-                
-        
-        
-n1= 20
-n2= 20
-n3= 20
-
-r_true = 2
-target_d = n1 * r_true * 20
-symmetric = False #symmetric uses m
-
-identity = False 
-device = 'cpu'
-spectral_init = False
-base_dir = os.path.dirname(os.path.abspath(__file__))
-loss_ord = 1
-radius_init = 10**-2 if symmetric else 10**-3
-n_iter = 5000
-
-np.random.seed(42)
-
-keys = [(2,1), (2,10), (4,1), (4,10)]
 
 
-methods = [ 'Subgradient descent', 'Levenberg–Marquardt (ours)']
+###############################################################################
+# Main Execution
+###############################################################################
+if __name__ == '__main__':
+    # Parameter definitions.
+    n1 = 100
+    n2 = 100
+    n3 = 20
 
-methods_test = methods
+    r_true = 2
+    m = n1 * r_true * 20
+    symmetric = True      # Set True for symmetric factorization.
+    # Set tensor=True for CP–tensor and tensor=False for matrix factorization.
+    tensor = False         
+    
+    identity = False
+    spectral_init = False
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    loss_ord = 1
+    initial_relative_error = 10**-2
+    n_iter = 500
 
-# Call the function
-run_methods(methods_test, keys, n1,n2, n3, r_true, target_d, identity, device, 
-            n_iter, spectral_init, base_dir, 
-            loss_ord, radius_init, symmetric)
+    torch.manual_seed(42)
+    torch.cuda.manual_seed(42)
+    
+    # experiment_setups: (overparameterization, condition number)
+    experiment_setups = [(2,10), (4, 10)]
+    methods = ['Subgradient descent', 'Levenberg–Marquardt (ours)']
+    methods_test = methods
 
-errs, stds = collect_compute_mean(keys, loss_ord, r_true, False, methods, 'tensor' + ('sym' if symmetric else ''))
-plot_losses_with_styles(errs, stds, r_true, loss_ord, base_dir, ('Symmetric' if symmetric else '') + 'CP', 1)
+    # Run the methods.
+    run_methods(methods_test, experiment_setups, n1, n2, n3, r_true, m, identity, device,
+                n_iter, spectral_init, base_dir, loss_ord, initial_relative_error, symmetric,
+                tensor=tensor)
+
+    # Compute and plot errors.
+    errs, stds = collect_compute_mean(experiment_setups, loss_ord, r_true, False, methods, 
+                                      f'{"tensor" if tensor else "matrix"}{"sym" if symmetric else ""}'
+                                       )
+    plot_losses_with_styles(errs, stds, r_true, loss_ord, base_dir, 
+                             (('Symmetric ' if symmetric else 'Asymmetric ') + 
+                              ('Tensor' if tensor else 'Matrix')), 1)
