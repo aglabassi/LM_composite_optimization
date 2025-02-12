@@ -26,7 +26,7 @@ if __name__ == "__main__":
     #problem = 'Symmetric CP'
     loss_ord = 1
     r_true = 2
-    n_cpu = 1
+    n_cpu = 1 
     trials = 20
     n_trial_div_n_cpu = 1
     #os.system('rm experiments/expbm*.csv') if symmetric else os.system('rm experiments/expasymmetric*.csv') 
@@ -42,7 +42,7 @@ if __name__ == "__main__":
 
     init_radius_ratio =10**-3
     end_ratio = 10**-8
-    keys_all = [(2,1)] #keep one
+    keys_all = [(5,100)] #keep one 
     keys_test = keys_all
     
     d_trials = [ i*2*n for i in range(1,20)]
