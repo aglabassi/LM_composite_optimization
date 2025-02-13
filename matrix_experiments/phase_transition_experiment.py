@@ -1,9 +1,15 @@
 import os
-from functools import partial
-from multiprocessing import Process
+import sys
 import numpy as np
-from utils import create_rip_transform, generate_matrix_with_condition, gen_random_point_in_neighborhood, matrix_recovery, plot_losses_with_styles,matrix_recovery_assymetric, trial_execution_matrix, collect_compute_mean
-from utils import plot_transition_heatmap
+
+
+repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+if repo_root not in sys.path:
+    sys.path.insert(0, repo_root)
+
+from LM_composite_optimization.utils import plot_transition_heatmap
+from matrix_utils import trial_execution_matrix
+
 import pickle  
 
 def save(obj, filename):
@@ -30,7 +36,7 @@ if __name__ == "__main__":
     trials = 20
     n_trial_div_n_cpu = 1
     #os.system('rm experiments/expbm*.csv') if symmetric else os.system('rm experiments/expasymmetric*.csv') 
-    T = 1000
+    T = 1
     n = 40
     np.random.seed(42)
     r =5
@@ -49,7 +55,10 @@ if __name__ == "__main__":
     cor_interval= 0.025
     corr_ranges = [ [l, l+cor_interval]  for l in np.arange(0, 0.5, cor_interval)]
     
-    save_path = f'./exp1/{keys_test[0]}_{problem}.pkl'
+    
+    base_dir = os.path.join(repo_root, 'LM_composite_optimization/experiment_results/phase_transition')
+    save_path = os.path.join(base_dir,f'{keys_test[0]}_{problem}.pkl' )
+    
     if run:
         success_matrixes = dict( (method, np.zeros((len(d_trials), len(corr_ranges)) )) for method in methods) 
         for i,d_trial in enumerate(d_trials):
@@ -67,7 +76,7 @@ if __name__ == "__main__":
                                                          d, keys_test, 
                                                          init_radius_ratio, 
                                                          T, loss_ord, 
-                                                         './', 
+                                                         base_dir, 
                                                          methods_test, 
                                                          True,
                                                          False,
@@ -78,17 +87,10 @@ if __name__ == "__main__":
                                                          d, keys_test, 
                                                          init_radius_ratio, 
                                                          T, loss_ord, 
-                                                         './', 
+                                                         base_dir, 
                                                          methods_test, 
                                                          False,
-                                                         False,
-                                                         corr_factor, geom_decay=True)
-                    elif problem == 'Symmetric CP':
-                        outputs = run_methods(
-                            methods_test, 
-                            keys_test, n, r_true, d, False, 'cpu', 
-                            T, False, './', 1, init_radius_ratio,
-                            corr_level=corr_factor)
+                                                         False, geom_decay=True)
                         
                     
                     for method in methods:
@@ -109,7 +111,7 @@ if __name__ == "__main__":
         success_matrixes=loaded_success_matrixes,
         d_trials=d_trials,
         n=n,
-        base_dir="./exp1",  # or your desired directory
+        base_dir=base_dir,  # or your desired directory
         keys = keys_test[0],
         problem=problem,
     )

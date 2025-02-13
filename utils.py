@@ -435,3 +435,68 @@ def plot_transition_heatmap(
     plt.savefig(save_path, format='pdf')
     print(f"Figure saved to: {save_path}")
     plt.show()
+    
+def plot_results_sensitivity(to_be_plotted, corr_level, q, r_test, c, gammas, lambdas, font_size, rel_error_exp, problem, base_dir):
+    # LaTeX / font settings
+    font_size = 30
+    mpl.rcParams['text.usetex'] = True
+    mpl.rcParams['font.family'] = 'serif'
+    mpl.rcParams['font.serif'] = ['Times New Roman']
+    mpl.rcParams['mathtext.fontset'] = 'stix'
+    mpl.rcParams['font.size'] = font_size
+    
+
+
+    method_colors = {
+        'Subgradient descent': '#dc267f',
+        'Gradient descent': '#dc267f',  # Same color as 'Subgradient descent'
+        'Scaled gradient': '#ffb000',
+        'Scaled gradient($\lambda=10^{-3}$)': '#ffa800',
+        'Scaled gradient($\lambda=10^{-8}$)': '#CD853F',
+        'Scaled subgradient': '#ffaf00',  # Same color as 'Scaled gradient'
+        'OPSA($\lambda=10^{-3}$)': '#97e60d',
+        'OPSA($\lambda=10^{-8}$)': '#94cc1a',
+        'Precond. gradient': '#fe6100',
+        'Gauss-Newton': '#648fff',
+        'Levenberg–Marquardt (ours)': '#785ef0'
+    }
+
+    for i, lambda_ in enumerate(lambdas):
+        plt.figure(figsize=(10, 6))  # Create a new figure for each lambda
+        for method in to_be_plotted.keys():
+            color = method_colors[method]
+            data = [to_be_plotted[method][i, j][0] for j in range(len(gammas))]
+            noise  = [to_be_plotted[method][i, j][1] for j in range(len(gammas)) ]  # Assume noise is a tuple (low, high)
+    
+            # Compute the noise bounds
+            noise_low = [noise[j][0] for j in range(len(gammas))]
+            noise_high = [noise[j][1] for j in range(len(gammas))]
+    
+            # Plot scatter points, connecting lines, and noise shading
+            plt.plot(gammas, data, label=method, color=color, linestyle='-', linewidth=2, marker='o')
+            plt.fill_between(gammas, noise_low, noise_high, color=color, alpha=0.2)
+    
+        # Set labels and title with LaTeX rendering
+        plt.xlabel(r"$\gamma$", fontsize=font_size)
+        bound = 10
+        plt.ylabel(rf"Iterations for $\frac{{\|z_k - z^*\|_2}}{{\|z_k\|_2}} \leq 10^{- rel_error_exp}$", fontsize=font_size)
+        plt.title(f"$q={q}$", fontsize=font_size) 
+        plt.xscale('log')
+        plt.xticks(gammas, fontsize=font_size//2)  # Explicitly set ticks and labels
+        
+        # Customize ticks and add grid
+        plt.xticks(fontsize=font_size//2)
+        plt.yticks(fontsize=font_size//2)
+        plt.grid(True, which='both', linestyle='--', alpha=0.7)
+        plt.legend(fontsize=font_size//2)
+    
+        # Save the plot to a file
+        save_path = os.path.join(base_dir, f"plot_{problem}_{q}_{corr_level}_{r_test}_{c}_{lambda_}.pdf")
+        plt.savefig(save_path, format='pdf')
+        print(f"Figure saved to: {save_path}")
+        plt.show()
+        plt.close()  # Close the figure to free memory
+        
+    
+
+
