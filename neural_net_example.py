@@ -260,12 +260,13 @@ def iterative_method(W10, W20, A, b, K, method, q=0.9, lambda_=1e-2, inner_act="
         z = c(A, W1, W2, inner_act=inner_act).squeeze()  
         
         # Print cost (optional)
-        print(h(z))
+        if k%100 == 0:
+            print(h(z))
         
         # Compute accuracy (here using the exp(c(.)) to map back to probabilities)
         pred = np.rint(np.exp(c(A, W1, W2, inner_act=inner_act))).reshape(-1)
         accuracy_k = np.sum(b == pred) / len(b)
-        print(accuracy_k)
+
         accs.append(h(z))
         
         # Outer gradient wrt c(A,W1,W2)
@@ -359,7 +360,7 @@ if __name__ == "__main__":
     np.random.seed(42)
 
     # Dimensions
-    n, d1, d2 = 100, 10, 10
+    n, d1, d2 = 100, 10, 100
     
     q = 0.98
     lambda_ = 10**-10
@@ -375,7 +376,7 @@ if __name__ == "__main__":
     ress = dict((method, []) for method in methods)
     
     # To switch inner activation, change inner_act below (e.g., "relu")
-    inner_act = "relu"  # or "sigmoid"
+    inner_act = "sigmoid"
 
     for method in methods:
         ress[method] = iterative_method(W1, W2, A, b, 5000, method, q=q, lambda_=lambda_, inner_act=inner_act)
