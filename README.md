@@ -1,6 +1,6 @@
-# Unified Matrix and Tensor Factorization
+# Unified Matrix and Canonical Polyadic Tensor Sensing and Factorization Using Our Levenberg-Marquardt Subgradient Method.
 
-This repository provides a collection of scripts and utilities for matrix and CP tensor factorization using both **NumPy 1.22.4** (in float64) and **PyTorch 1.10.1**. It includes:
+This repo includes:
 
 - **Matrix-based experiments** using NumPy (float64 precision) to provide more precision when computing the L2 norm squared.
 - **GPU-accelerated factorization** in PyTorch, featuring our approach that supports both matrix and CP tensor factorization (symmetric or asymmetric).
@@ -11,7 +11,7 @@ This repository provides a collection of scripts and utilities for matrix and CP
 - **Levenberg-Marquardt_sensing.py**  
   - PyTorch-based script providing a unified template for matrix and CP tensor factorization.  
   - Designed to run on GPUs if available.  
-  - May exhibit numerical issues when using double precision (float64)  with the L2-nrom squared. However, these issues disapear when using L2 or L1 norm.
+  - May exhibit numerical issues when using double precision (float64)  with the L2-norm squared. However, these issues disapear when using L2 or L1 norm.
 
 - **matrix_experiments/**  
   - Contains multiple scripts (e.g., `main.py`, `main_hadamard.py`, `phase_transition_experiment.py`, etc.) for running matrix factorization tasks purely in NumPy,
