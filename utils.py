@@ -513,7 +513,7 @@ def compute_stepsize_and_damping(
 
     # Default damping if not used in the method
     damping = 0.0
-    constant_stepsize = 1e-8 if symmetric else 1e-7
+    constant_stepsize = 0.5
 
     # -- 1) Plain (sub)gradient methods
     if method in ['Gradient descent', 'Subgradient descent']:
@@ -523,12 +523,12 @@ def compute_stepsize_and_damping(
     else:
         if method == 'Scaled gradient($\lambda=10^{-8}$)':
             damping = 1e-5
-            stepsize = 1e-1 
+            stepsize = constant_stepsize 
 
         elif method == 'Precond. gradient':
             # Example: damping depends on sqrt(h_c_x)
             damping = torch.sqrt(torch.tensor(h_c_x)) * 2.5e-3
-            stepsize = 1e-1
+            stepsize = constant_stepsize
             
         elif method  in ['Levenberg-Marquardt (ours)', 'Gauss-Newton']:
             # Damping depends on loss_ord, plus possibly geometric decay
