@@ -280,7 +280,7 @@ def plot_losses_with_styles(losses, stds, r_true, loss_ord, base_dir, problem, k
             combined_labels.append('')  # Empty label for dummy handle
 
 
-    height = 0.86
+    height = 0.80
 
 
     # Methods legend at upper right

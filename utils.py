@@ -501,7 +501,6 @@ def compute_stepsize_and_damping(
     q : float, optional
         Decay rate if geom_decay is True.
     k : int, optional
-        Current iteration index if geom_decay is True.
 
     Returns
     -------
@@ -520,11 +519,17 @@ def compute_stepsize_and_damping(
         stepsize = h_c_x / (torch.norm(grad) ** 2)
 
     # -- 2) Preconditioned or scaled methods
+    elif method == 'OPSA($\lambda=10^{-8}$)':
+        pass
+    
+    
+    
+    
     else:
         if method == 'Scaled gradient($\lambda=10^{-8}$)':
             damping = 1e-8
             stepsize = constant_stepsize 
-
+        
         elif method == 'Precond. gradient':
             # Example: damping depends on sqrt(h_c_x)
             damping = torch.sqrt(torch.tensor(h_c_x)) * 2.5e-3
@@ -538,7 +543,7 @@ def compute_stepsize_and_damping(
                 if lambda_ is None or q is None or k is None:
                     raise ValueError("lambda_, q, k must be provided if geom_decay=True.")
 
-                damping = lambda_ * (q ** k)
+                damping = lambda_ * (q**k)
                 stepsize= gamma * (q**k)
             else:
                 # fallback if not geometric

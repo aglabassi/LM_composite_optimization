@@ -123,10 +123,12 @@ def test_methods(methods_test, experiment_setups, n1, n2, n3, r_true, m, identit
                 factors = [ X,Y,Z ] if tensor else [X,Y]
                 if method in ['Gauss-Newton', 'Levenberg-Marquardt (ours)']:
                     operator_fn = lambda x: LM_preconditioner(x, factors, symmetric, tensor=tensor) 
-                elif method in ['Precond. gradient', 'Scaled gradient']:
+                elif method in ['Precond. gradient', 'Scaled gradient($\lambda=10^{-8}$)', 'OPSA($\lambda=10^{-8}$)']:
                     operator_fn = lambda x: scaled_preconditioner(x, factors, symmetric, tensor=tensor)
                 elif method in ['Gradient descent', 'Subgradient descent']:
                     operator_fn = lambda x: x
+                else:
+                    raise NotImplementedError()
                             
                 preconditioned_grad = cg_solve(operator_fn, grad, damping)
                     
