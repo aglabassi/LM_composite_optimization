@@ -279,19 +279,9 @@ def plot_losses_with_styles(losses, stds, r_true, loss_ord, base_dir, problem, k
             combined_handles.append(create_dummy_handle())
             combined_labels.append('')  # Empty label for dummy handle
 
-    # Place legends
-    if  (problem == 'Tensor' and loss_ord == 1):
-        height = 0.61 
-    elif problem  == 'Hadamard':
-        height = 0.98
-    elif (problem == 'CP' and loss_ord == 2):
-        height = 1
-    elif problem == 'Burer-Monteiro':
-        height = 0.86
-    elif problem == 'Asymmetric':
-        height = 0.83
-    else:
-        height = 0.98
+
+    height = 0.86
+
 
     # Methods legend at upper right
     legend1 = ax.legend(
