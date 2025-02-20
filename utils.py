@@ -550,7 +550,7 @@ def compute_stepsize_and_damping(
                 if loss_ord == 2:
                     damping = torch.sqrt(torch.tensor(h_c_x)) * 2.5e-3
                 else:
-                    damping = h_c_x * 1e-5
+                    damping = h_c_x * 2.5e-3
 
                 stepsize = h_c_x / torch.dot(subgradient_h, subgradient_h)
 
