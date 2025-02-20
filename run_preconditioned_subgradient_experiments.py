@@ -133,7 +133,7 @@ def test_methods(methods_test, experiment_setups, n1, n2, n3, r_true, m, identit
                 preconditioned_grad = cg_solve(operator_fn, grad, damping)
                     
                 X, Y, Z = update_factors( X, Y, (Z if tensor else None), 
-                                        preconditioned_grad, 
+                                        preconditioned_grad if method not in ['Gradient descent', 'Subgradient descent'] else grad, 
                                         stepsize, 
                                         sizes, 
                                         split, 
