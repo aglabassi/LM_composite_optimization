@@ -513,7 +513,7 @@ def compute_stepsize_and_damping(
 
     # Default damping if not used in the method
     damping = 0.0
-    constant_stepsize = 1e0
+    constant_stepsize = 0.5
 
     # -- 1) Plain (sub)gradient methods
     if method in ['Gradient descent', 'Subgradient descent']:
@@ -522,7 +522,7 @@ def compute_stepsize_and_damping(
     # -- 2) Preconditioned or scaled methods
     else:
         if method == 'Scaled gradient($\lambda=10^{-8}$)':
-            damping = 1e-5
+            damping = 1e-8
             stepsize = constant_stepsize 
 
         elif method == 'Precond. gradient':
