@@ -97,7 +97,7 @@ def local_init(T_star, factors, dims, tol, r, symmetric, tensor=True):
             T = new_factors[0] @ new_factors[1].T
     
     err_rel = torch.norm(T - T_star) / torch.norm(T_star)
-    to_add = 1e-5 
+    to_add = 1e-2 
     while err_rel <= tol:
         if tensor:
             if symmetric:
