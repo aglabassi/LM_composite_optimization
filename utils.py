@@ -320,7 +320,7 @@ def split(concatenated, shapes):
 ###############################################################################
 # Generic Conjugate–Gradient Solver
 ###############################################################################
-def cg_solve(operator_fn, b, damping, max_iter=100, epsilon=1e-20):
+def cg_solve(operator_fn, b, damping, max_iter=100, epsilon=1e-22):
     """
     Generic conjugate gradient solver.
     
