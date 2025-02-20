@@ -513,7 +513,7 @@ def compute_stepsize_and_damping(
 
     # Default damping if not used in the method
     damping = 0.0
-    constant_stepsize = 0.5
+    constant_stepsize = 1e0
 
     # -- 1) Plain (sub)gradient methods
     if method in ['Gradient descent', 'Subgradient descent']:
