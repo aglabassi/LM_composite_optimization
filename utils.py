@@ -98,7 +98,6 @@ def local_init(T_star, factors, dims, tol, r, symmetric, tensor=True):
     
     err_rel = torch.norm(T - T_star) / torch.norm(T_star)
     to_add = 1e-5
-    
     while err_rel <= tol:
         
         if tensor:
@@ -322,7 +321,7 @@ def split(concatenated, shapes):
 ###############################################################################
 # Generic Conjugate–Gradient Solver
 ###############################################################################
-def cg_solve(operator_fn, b, damping, max_iter=100, epsilon=1e-22):
+def cg_solve(operator_fn, b, damping, max_iter=100, epsilon=1e-25):
     """
     Generic conjugate gradient solver.
     
@@ -554,7 +553,7 @@ def compute_stepsize_and_damping(
                 if loss_ord == 2:
                     damping = torch.sqrt(torch.tensor(h_c_x)) * 2.5e-3
                 else:
-                    damping = h_c_x * 1.25e-3
+                    damping = h_c_x * 1e-5
 
                 stepsize = h_c_x / torch.dot(subgradient_h, subgradient_h)
 
