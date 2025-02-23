@@ -97,8 +97,10 @@ def local_init(T_star, factors, dims, tol, r, symmetric, tensor=True):
             T = new_factors[0] @ new_factors[1].T
     
     err_rel = torch.norm(T - T_star) / torch.norm(T_star)
-    to_add = 1e-2 
+    to_add = 1e-5
+    
     while err_rel <= tol:
+        
         if tensor:
             if symmetric:
                 new_factors[0] = new_factors[0] + torch.rand(dims[0], r, device=new_factors[0].device) * to_add
@@ -517,6 +519,8 @@ def compute_stepsize_and_damping(
     # -- 1) Plain (sub)gradient methods
     if method in ['Gradient descent', 'Subgradient descent']:
         stepsize = h_c_x / (torch.norm(grad) ** 2)
+        if geom_decay:
+            stepsize = (q**k)*gamma
 
     # -- 2) Preconditioned or scaled methods
     elif method == 'OPSA($\lambda=10^{-8}$)':
