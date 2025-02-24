@@ -45,7 +45,7 @@ def collect_compute_mean(keys, loss_ord, r_true, res, methods, problem, base_dir
     return losses, stds
 
 
-def plot_losses_with_styles(losses, stds, r_true, loss_ord, base_dir, problem, kappa, num_dots=0.1):
+def plot_losses_with_styles(losses, stds, r_true, loss_ord, base_dir, problem, kappa, num_dots=0.1, intro_plot=False):
     """
     Plots the losses with distinct styles for methods, parameterizations, and ill-conditioning levels.
 
@@ -82,6 +82,18 @@ def plot_losses_with_styles(losses, stds, r_true, loss_ord, base_dir, problem, k
 
     colors = dict()
     
+    if intro_plot:
+        losses_adjusted = dict()
+        stds_adjusted = dict()
+        
+        for k in losses.keys():
+            to_add_key = k if k != 'Subgradient descent' else 'Polyak Subgradient'
+            losses_adjusted[to_add_key] = losses[k]
+            stds_adjusted[to_add_key] = stds[k]
+            
+        losses = losses_adjusted
+        stds = stds_adjusted
+
     methods_ = list(losses.keys())
     
     for m in methods_:
@@ -93,6 +105,10 @@ def plot_losses_with_styles(losses, stds, r_true, loss_ord, base_dir, problem, k
     markers = ['o', '^', 'D', 's', 'P', '*', 'X', 'v', '<', '>']  # Extended markers list
     linestyles = ['-', ':']  # Different linestyles
 
+    if intro_plot:
+        markers = ['o']*10
+        linestyles = [(0, (1.5,1.3))]*10
+        
     fig, ax = plt.subplots()
     ax.tick_params(axis='both', which='major', labelsize=25)
 
@@ -116,6 +132,7 @@ def plot_losses_with_styles(losses, stds, r_true, loss_ord, base_dir, problem, k
     
     method_colors = {
     'Subgradient descent': '#dc267f',
+    'Polyak Subgradient': '#dc267f',
     'Gradient descent': '#dc267f',  # Same color as 'Subgradient descent'
     'Scaled gradient': '#ffb000',
     'Scaled gradient($\lambda=10^{-8}$)': '#ffb000',
@@ -140,10 +157,14 @@ def plot_losses_with_styles(losses, stds, r_true, loss_ord, base_dir, problem, k
 
             # Determine the index where errors have converged to machine epsilon
             convergence_threshold = 1e-13   # Slightly above machine epsilon to account for numerical errors
+            divergence_threshold  = 1e1
             converged_indices = np.where(errs <= convergence_threshold)[0]
+            diverged_indices = np.where(errs  >= divergence_threshold)[0]
             print(method, k)
             if converged_indices.size > 0:
                 last_index = converged_indices[0] + 1  # Include the converged point
+            elif diverged_indices.size > 0:
+                last_index = diverged_indices[0] + 1
             else:
                 last_index = len(errs)
 
@@ -221,6 +242,9 @@ def plot_losses_with_styles(losses, stds, r_true, loss_ord, base_dir, problem, k
     # Setting labels with LaTeX formatting
     ax.set_xlabel('Iteration', fontsize=30)
     ax.set_ylabel(r'Relative Distance $\frac{\left\| z_k - z^\ast \right\|_2}{\left\| z^\ast \right\|_2}$', fontsize=30)
+    if intro_plot:
+        ax.set_ylabel(r'Relative Distance $\frac{\left\| M_k - M^\ast \right\|_F}{\left\| M^\ast \right\|_F}$', fontsize=30)
+        
     ax.set_yscale('log')
 
     # Adding grid lines
@@ -232,9 +256,15 @@ def plot_losses_with_styles(losses, stds, r_true, loss_ord, base_dir, problem, k
 
     # Create custom legend handles
     # Methods legend (colors only)
-    method_handles = [
-        Line2D([0], [0], color=method_colors[method], lw=2) for method in methods
-    ]
+    if intro_plot:
+        method_handles = [
+            Line2D([0], [0], color=method_colors[method], linestyle=linestyle, marker=marker, lw=3) for method in methods
+        ]
+    else:
+        method_handles = [
+            Line2D([0], [0], color=method_colors[method], lw=2) for method in methods
+        ]
+        
     method_labels = methods
 
     # Markers legend (parameterization), markers in black
@@ -289,7 +319,7 @@ def plot_losses_with_styles(losses, stds, r_true, loss_ord, base_dir, problem, k
         method_labels,
         title='Methods',
         loc='upper right',
-        bbox_to_anchor=(0.67, height),
+        bbox_to_anchor=(0.67 if not intro_plot else 0.95, height),
         frameon=True,
         facecolor='white',
         edgecolor='black',
@@ -298,29 +328,30 @@ def plot_losses_with_styles(losses, stds, r_true, loss_ord, base_dir, problem, k
     )
 
 
-
-    legend2 = ax.legend(
-        combined_handles,
-        combined_labels,
-        title='Setting',
-        loc='upper right',
-        bbox_to_anchor=(1, height),  # Adjust the y-coordinate as needed
-        frameon=True,
-        facecolor='white',
-        edgecolor='black',
-        fontsize=18,          # Set the font size of the legend labels to 18
-        title_fontsize=20     # Set the font size of the legend title to 20
-    )
+    if not intro_plot:
+        legend2 = ax.legend(
+            combined_handles,
+            combined_labels,
+            title='Setting',
+            loc='upper right',
+            bbox_to_anchor=(1, height),  # Adjust the y-coordinate as needed
+            frameon=True,
+            facecolor='white',
+            edgecolor='black',
+            fontsize=18,          # Set the font size of the legend labels to 18
+            title_fontsize=20     # Set the font size of the legend title to 20
+        )
+        ax.add_artist(legend2)
 
     # Add the first legend back to the axes
     ax.add_artist(legend1)
-    ax.add_artist(legend2)
+    
 
     # Tight layout for better spacing
     plt.tight_layout()
 
     # Saving the figure in a vector format (PDF)
-    fig_path = os.path.join(base_dir, f'./exp_l{loss_ord}_{problem}.pdf')
+    fig_path = os.path.join(base_dir, f'./{"intro_" if intro_plot else ""}exp_l{loss_ord}_{problem}.pdf')
     plt.savefig(fig_path, format='pdf', bbox_inches='tight')
 
     # Display the plot
