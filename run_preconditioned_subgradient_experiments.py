@@ -12,11 +12,12 @@ import os
 import numpy as np #use to save csv's 
 from preconditioners import LM_preconditioner, scaled_preconditioner
 from utils import LinearMeasurementOperator, generate_data_and_initialize, \
-    compute_gradient, compute_stepsize_and_damping, cg_solve, update_factors, split
+    compute_gradient, compute_stepsize_and_damping, cg_solve, update_factors, split, rebalance
 
-def test_methods(methods_test, experiment_setups, n1, n2, n3, r_true, m, identity, device,
+def test_methods(methods_test, experiment_setups, n1, n2, n3, r_true, m_divided_by_r, identity, device,
                 n_iter, base_dir, loss_ord, initial_relative_error, symmetric,
-                tensor=True, corr_level=0, geom_decay=False, q=0.97, lambda_=10**-5, gamma=10**-8):
+                tensor=True, had=False,corr_level=0, geom_decay=False, q=0.97, lambda_=10**-5, 
+                gamma=10**-8, gamma_custom=None, projected_stepsize=False):
     """
     Runs the various descent methods.
     
@@ -28,14 +29,15 @@ def test_methods(methods_test, experiment_setups, n1, n2, n3, r_true, m, identit
     # For CP–tensor: use (n1,n2,n3); for matrix factorization:
     #   symmetric: use (n1,n1) and asymmetric: use (n1,n2)
  
-    measurement_operator = LinearMeasurementOperator(n1, n2, n3, m, device,
-                                                     identity=identity,
-                                                     tensor=tensor)
 
     
     outputs = dict()
     for experiment_setup in experiment_setups:
         r, kappa = experiment_setup
+        m = m_divided_by_r * r
+        measurement_operator = LinearMeasurementOperator(n1, n2, n3, m, device,
+                                                         identity=identity,
+                                                         tensor=tensor)
         print("=" * 80)
         print(f"Experiment Setup: r = {r}, kappa = {kappa}")
         print("=" * 80)
@@ -99,6 +101,9 @@ def test_methods(methods_test, experiment_setups, n1, n2, n3, r_true, m, identit
                 elif loss_ord == 2:
                     subgradient_h = measurement_operator.A_adj(residual).view(-1)
                     h_c_x = 0.5 * (torch.norm(residual) ** 2).item()
+                elif loss_ord == 10:
+                    subgradient_h = (1/m)*measurement_operator.A_adj(torch.sign(residual)).view(-1)
+                    h_c_x = (1/m)*torch.sum(torch.abs(residual)).item()
 
                 grad = compute_gradient(X,
                                         Y,
@@ -109,6 +114,8 @@ def test_methods(methods_test, experiment_setups, n1, n2, n3, r_true, m, identit
                                         n3,
                                         symmetric=symmetric,
                                         tensor=tensor)
+                if method == 'OPSA($\lambda=10^{-8}$)':
+                    grad += 1e-8* torch.cat((X.view(-1), Y.view(-1)))
 
                 stepsize, damping = compute_stepsize_and_damping(
                                         method,
@@ -117,28 +124,37 @@ def test_methods(methods_test, experiment_setups, n1, n2, n3, r_true, m, identit
                                         h_c_x,
                                         loss_ord,
                                         symmetric,
+                                        tensor=tensor,
                                         geom_decay=geom_decay,
-                                        q=q, lambda_=lambda_, gamma=gamma, k=k)
-       
+                                        q=q, lambda_=lambda_, gamma=gamma, k=k,
+                                        X=X,Y=Y, G=split(grad, sizes), device=device, gamma_custom=gamma_custom) #for OPSA
+                
                 factors = [ X,Y,Z ] if tensor else [X,Y]
                 if method in ['Gauss-Newton', 'Levenberg-Marquardt (ours)']:
                     operator_fn = lambda x: LM_preconditioner(x, factors, symmetric, tensor=tensor) 
                 elif method in ['Precond. gradient', 'Scaled gradient($\lambda=10^{-8}$)', 'OPSA($\lambda=10^{-8}$)']:
                     operator_fn = lambda x: scaled_preconditioner(x, factors, symmetric, tensor=tensor)
-                elif method in ['Gradient descent', 'Subgradient descent']:
+                elif method in ['Gradient descent', 'Polyak Subgradient']:
                     operator_fn = lambda x: x
                 else:
                     raise NotImplementedError()
                             
                 preconditioned_grad = cg_solve(operator_fn, grad, damping)
                     
+                if method in  ['Gauss-Newton', 'Levenberg-Marquardt (ours)']:
+                    if projected_stepsize:
+                        stepsize *= (torch.dot(subgradient_h, subgradient_h)/( torch.sum(preconditioned_grad*
+                                                                                         LM_preconditioner(preconditioned_grad, factors, symmetric, tensor=tensor))))
+                    
                 X, Y, Z = update_factors( X, Y, (Z if tensor else None), 
-                                        preconditioned_grad if method not in ['Gradient descent', 'Subgradient descent'] else grad, 
+                                        preconditioned_grad if method not in ['Gradient descent', 'Polyak Subgradient'] else grad, 
                                         stepsize, 
                                         sizes, 
-                                        split, 
+                                        split,
                                         symmetric=symmetric, 
                                         tensor=tensor)
+                if method == 'OPSA($\lambda=10^{-8}$)':
+                   X,Y = rebalance(X,Y,device)
                 
             
         

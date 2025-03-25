@@ -45,7 +45,7 @@ def collect_compute_mean(keys, loss_ord, r_true, res, methods, problem, base_dir
     return losses, stds
 
 
-def plot_losses_with_styles(losses, stds, r_true, loss_ord, base_dir, problem, kappa, num_dots=0.1, intro_plot=False):
+def plot_losses_with_styles(losses, stds, r_true, loss_ord, base_dir, problem, kappa, num_dots=0.1, intro_plot=False, symmetric=True, tensor=False,had=False, d=None):
     """
     Plots the losses with distinct styles for methods, parameterizations, and ill-conditioning levels.
 
@@ -82,17 +82,7 @@ def plot_losses_with_styles(losses, stds, r_true, loss_ord, base_dir, problem, k
 
     colors = dict()
     
-    if intro_plot:
-        losses_adjusted = dict()
-        stds_adjusted = dict()
-        
-        for k in losses.keys():
-            to_add_key = k if k != 'Subgradient descent' else 'Polyak Subgradient'
-            losses_adjusted[to_add_key] = losses[k]
-            stds_adjusted[to_add_key] = stds[k]
-            
-        losses = losses_adjusted
-        stds = stds_adjusted
+
 
     methods_ = list(losses.keys())
     
@@ -131,9 +121,8 @@ def plot_losses_with_styles(losses, stds, r_true, loss_ord, base_dir, problem, k
     linestyle_styles = {}
     
     method_colors = {
-    'Subgradient descent': '#dc267f',
     'Polyak Subgradient': '#dc267f',
-    'Gradient descent': '#dc267f',  # Same color as 'Subgradient descent'
+    'Gradient descent': '#dc267f',  # Same color as 'Polyak Subgradient'
     'Scaled gradient': '#ffb000',
     'Scaled gradient($\lambda=10^{-8}$)': '#ffb000',
     'Scaled subgradient': '#ffaf00',  # Same color as 'Scaled gradient'
@@ -157,7 +146,7 @@ def plot_losses_with_styles(losses, stds, r_true, loss_ord, base_dir, problem, k
 
             # Determine the index where errors have converged to machine epsilon
             convergence_threshold = 1e-13   # Slightly above machine epsilon to account for numerical errors
-            divergence_threshold  = 1e1
+            divergence_threshold  = 1e3
             converged_indices = np.where(errs <= convergence_threshold)[0]
             diverged_indices = np.where(errs  >= divergence_threshold)[0]
             print(method, k)
@@ -237,13 +226,20 @@ def plot_losses_with_styles(losses, stds, r_true, loss_ord, base_dir, problem, k
         'Asymmetric': 'Matrix',
         'Hadamard': 'Square Vector',
         'Tensor': 'Tensors'
+
     }.get(problem, '')
 
     # Setting labels with LaTeX formatting
-    ax.set_xlabel('Iteration', fontsize=30)
-    ax.set_ylabel(r'Relative Distance $\frac{\left\| z_k - z^\ast \right\|_2}{\left\| z^\ast \right\|_2}$', fontsize=30)
+    ax.set_xlabel('Iteration k', fontsize=30)
+    metric = ('X_k' + ('X_k^{\\top}' if symmetric else 'Y_k^{\\top}') + ' - M^{\star}') if not tensor else ('F_{{\\mathrm{sym}}}({X_k}) - T^\star' if symmetric else 'F(W_k,X_k,Y_k) - T^\star ')
+    denominator = 'M^\star' if not tensor else 'T^\star'
+    ax.set_ylabel(fr'Relative Distance $\frac{{\left\| {metric} \right\|_F}}{{\left\| {denominator} \right\|_F}}$', fontsize=30)
+    if had:
+        ax.set_ylabel(fr'Relative Distance $\frac{{\left\| x_k \odot x_k - z^\star \right\|_2}}{{\left\| z^\star \right\|_2}}$', fontsize=30)
+
+
     if intro_plot:
-        ax.set_ylabel(r'Relative Distance $\frac{\left\| M_k - M^\ast \right\|_F}{\left\| M^\ast \right\|_F}$', fontsize=30)
+        ax.set_ylabel(r'Relative Distance $\frac{\left\| M_k - M^\star \right\|_F}{\left\| M^\ast \right\|_F}$', fontsize=30)
         
     ax.set_yscale('log')
 
@@ -351,7 +347,7 @@ def plot_losses_with_styles(losses, stds, r_true, loss_ord, base_dir, problem, k
     plt.tight_layout()
 
     # Saving the figure in a vector format (PDF)
-    fig_path = os.path.join(base_dir, f'./{"intro_" if intro_plot else ""}exp_l{loss_ord}_{problem}.pdf')
+    fig_path = os.path.join(base_dir, f'./{"intro_" if intro_plot else ""}exp_l{loss_ord}_{problem}_{d}.pdf')
     plt.savefig(fig_path, format='pdf', bbox_inches='tight')
 
     # Display the plot
@@ -442,11 +438,11 @@ def plot_transition_heatmap(
             ax.set_ylabel(r"Measurement Ratio $m / (2n)$", fontsize=font_size)
 
         # Give each subplot a title corresponding to its method:
-        ax.set_title(method, fontsize=font_size)
+        #ax.set_title(method, fontsize=font_size)
 
     # Create one colorbar for all subplots, using the last im
     cbar = fig.colorbar(im, ax=axs.ravel().tolist())
-    cbar.ax.set_ylabel("Success Ratio", fontsize=font_size)
+    cbar.ax.set_ylabel("Success Ratio", fontsize=font_size*1.2)
     cbar.ax.tick_params(labelsize=font_size)
 
     # Save the figure
@@ -467,8 +463,8 @@ def plot_results_sensitivity(to_be_plotted, corr_level, q, r_test, c, gammas, la
 
 
     method_colors = {
-        'Subgradient descent': '#dc267f',
-        'Gradient descent': '#dc267f',  # Same color as 'Subgradient descent'
+        'Polyak Subgradient': '#dc267f',
+        'Gradient descent': '#dc267f',  # Same color as 'Polyak Subgradient'
         'Scaled gradient': '#ffb000',
         'Scaled gradient($\lambda=10^{-8}$)':  '#ffaf00',  
         'Scaled subgradient': '#ffaf00',  # Same color as 'Scaled gradient'
@@ -505,7 +501,7 @@ def plot_results_sensitivity(to_be_plotted, corr_level, q, r_test, c, gammas, la
         plt.xticks(fontsize=font_size//2)
         plt.yticks(fontsize=font_size//2)
         plt.grid(True, which='both', linestyle='--', alpha=0.7)
-        plt.legend(fontsize=font_size//2)
+        plt.legend(fontsize=font_size//2, loc="lower right")
     
         # Save the plot to a file
         save_path = os.path.join(base_dir, f"plot_{problem}_{q}_{corr_level}_{r_test}_{c}_{lambda_}.pdf")

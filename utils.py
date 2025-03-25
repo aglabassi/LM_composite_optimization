@@ -261,7 +261,7 @@ def generate_data_and_initialize(
                 initial_relative_error, r, True, tensor=True
             )
             X0 = Y0 = Z0 = new_factors[0]
-            sizes = [X0.shape, Y0.shape, Z0.shape]
+            sizes = [X0.shape]
             factors = (X0, X0, X0)
         else:
             new_factors = local_init(
@@ -474,11 +474,13 @@ def compute_stepsize_and_damping(
     h_c_x,
     loss_ord,
     symmetric,
+    tensor=False,
     geom_decay=False,
     lambda_=None,
     q=None,
     gamma=None,
-    k=None
+    k=None,
+    X=None,Y=None, G=None, device=None,gamma_one=False, gamma_custom=None#Use for polyak stepsize with gamma =1
 ):
     """
     Computes the stepsize and damping for various methods.
@@ -488,7 +490,7 @@ def compute_stepsize_and_damping(
     method : str
         The update method (e.g., 'Gradient descent', 'Scaled gradient', etc.).
     grad : torch.Tensor
-        The gradient (flattened or otherwise). Used for 'Gradient descent'/'Subgradient descent'.
+        The gradient (flattened or otherwise). Used for 'Gradient descent'/'Polyak Subgradient'.
     subgradient_h : torch.Tensor
         The subgradient (same shape as needed in dot-product). Used in certain methods.
     h_c_x : float
@@ -515,50 +517,58 @@ def compute_stepsize_and_damping(
     damping = 0.0
     constant_stepsize = 0.5
 
-    # -- 1) Plain (sub)gradient methods
-    if method in ['Gradient descent', 'Subgradient descent']:
+    if method in ['Gradient descent', 'Polyak Subgradient']:
         stepsize = h_c_x / (torch.norm(grad) ** 2)
         if geom_decay:
             stepsize = (q**k)*gamma
 
-    # -- 2) Preconditioned or scaled methods
     elif method == 'OPSA($\lambda=10^{-8}$)':
-        pass
+        damping = 1e-8
+        Gx,Gy = G
+        aux_x = Gx@matrix_inverse_sqrt(Y.T@Y + damping*torch.eye(Y.shape[1],device=device), device)
+        aux_y = Gy@matrix_inverse_sqrt(X.T@X + damping*torch.eye(X.shape[1], device=device), device)
+        stepsize =  h_c_x / (torch.sum(aux_x**2) + torch.sum(aux_y**2) )
     
+    elif method == 'Scaled gradient($\lambda=10^{-8}$)':
+        damping = 1e-8
+        stepsize = constant_stepsize 
     
-    
-    
-    else:
-        if method == 'Scaled gradient($\lambda=10^{-8}$)':
-            damping = 1e-8
-            stepsize = constant_stepsize 
+    elif method == 'Precond. gradient':
+        # Example: damping depends on sqrt(h_c_x)
+        damping = torch.sqrt(torch.tensor(h_c_x)) * 2.5e-3
+        stepsize = constant_stepsize
         
-        elif method == 'Precond. gradient':
-            # Example: damping depends on sqrt(h_c_x)
-            damping = torch.sqrt(torch.tensor(h_c_x)) * 2.5e-3
-            stepsize = constant_stepsize
-            
-        elif method  in ['Levenberg-Marquardt (ours)', 'Gauss-Newton']:
-            # Damping depends on loss_ord, plus possibly geometric decay
-            if geom_decay:
-                # damping = lambda_ * (q ** k)
-                # Ensure lambda_, q, k are not None
-                if lambda_ is None or q is None or k is None:
-                    raise ValueError("lambda_, q, k must be provided if geom_decay=True.")
+    elif method  in ['Levenberg-Marquardt (ours)', 'Gauss-Newton']:
+        # Damping depends on loss_ord, plus possibly geometric decay
+        if geom_decay:
+            # damping = lambda_ * (q ** k)
+            # Ensure lambda_, q, k are not None
+            if lambda_ is None or q is None or k is None:
+                raise ValueError("lambda_, q, k must be provided if geom_decay=True.")
 
-                damping = lambda_ * (q**k)
-                stepsize= gamma * (q**k)
-            else:
-                # fallback if not geometric
-                if loss_ord == 2:
-                    damping = torch.sqrt(torch.tensor(h_c_x)) * 2.5e-3
-                else:
-                    damping = h_c_x * 1e-5
-
-                stepsize = h_c_x / torch.dot(subgradient_h, subgradient_h)
-
+            damping = lambda_ * (q**k)
+            stepsize= gamma * (q**k)
         else:
-            raise NotImplementedError(f"Unknown method: {method}")
+            # fallback if not geometric
+            if loss_ord == 2:
+                damping = torch.sqrt(torch.tensor(h_c_x)) * 2.5e-3
+            else:
+                damping = h_c_x * 1e-5
+                
+            if symmetric and not tensor:
+                gamma = 10 if loss_ord == 1 else 15
+            elif not symmetric and not tensor:
+                gamma = 5
+            else:
+                gamma=1
+            if gamma_one:
+                gamma=1
+            if gamma_custom is not None:
+                gamma=gamma_custom
+            stepsize = (gamma*h_c_x) / torch.dot(subgradient_h, subgradient_h)
+
+    else:
+        raise NotImplementedError(f"Unknown method: {method}")
     return stepsize, (damping if method != 'Gauss-Newton' else 0)
 
 
@@ -569,7 +579,7 @@ def update_factors(
     preconditioned_grad, 
     stepsize, 
     sizes, 
-    split_fn, 
+    split_fn,
     symmetric=False, 
     tensor=False
 ):
@@ -633,4 +643,70 @@ def update_factors(
     return X, Y, Z
 
 
+def rebalance(X, Y, device):
+    """
+    Rebalances matrices X and Y using QR decompositions and SVD, 
+    with all computations performed on the specified device.
+    
+    Parameters:
+        X (torch.Tensor): Input matrix X.
+        Y (torch.Tensor): Input matrix Y.
+        device (torch.device): The device to perform computations on.
+        
+    Returns:
+        Tuple[torch.Tensor, torch.Tensor]: The rebalanced matrices L_OPSAd and R_OPSAd.
+    """
+    # Move input matrices to the specified device.
+    X = X.to(device)
+    Y = Y.to(device)
+    
+    # Perform reduced QR decompositions of X and Y.
+    QL, WL = torch.linalg.qr(X, mode='reduced')
+    QR, WR = torch.linalg.qr(Y, mode='reduced')
+    
+    # Compute the SVD of the product WL @ WR.T.
+    U, s, Vh = torch.linalg.svd(WL @ WR.T)
+    
+    # Create a diagonal matrix of the square roots of the singular values.
+    Sigma_sqrt = torch.diag(torch.sqrt(s)).to(device)
+    
+    # Compute the rebalanced matrices.
+    L_OPSAd = QL @ U @ Sigma_sqrt
+    R_OPSAd = QR @ Vh.T @ Sigma_sqrt
+    
+    return L_OPSAd, R_OPSAd
 
+
+
+def matrix_inverse_sqrt(A, device, eps=1e-13):
+    """
+    Computes A^(-1/2) for a symmetric matrix A on a specified device.
+    
+    Parameters:
+        A (torch.Tensor): A symmetric matrix of shape (N, N).
+        device (torch.device): The device to run computations on.
+        eps (float): A small constant for numerical stability.
+    
+    Returns:
+        torch.Tensor: The matrix inverse square root of A, on the specified device.
+    """
+    # Ensure A is on the correct device.
+    A = A.to(device)
+    
+    # Compute the eigenvalue decomposition of A.
+    eigenvalues, eigenvectors = torch.linalg.eigh(A)
+    
+    # Clamp eigenvalues for numerical stability.
+    eigenvalues = torch.clamp(eigenvalues, min=eps)
+    
+    # Compute the inverse square root of the eigenvalues.
+    inv_sqrt_eigenvalues = 1.0 / torch.sqrt(eigenvalues)
+    
+    # Create a diagonal matrix from the inverse square roots.
+    # Ensure it is created on the same device.
+    inv_sqrt_diag = torch.diag(inv_sqrt_eigenvalues).to(device)
+    
+    # Reconstruct A^(-1/2) = Q * diag(inv_sqrt_eigenvalues) * Q^T.
+    A_inv_sqrt = eigenvectors @ inv_sqrt_diag @ eigenvectors.T
+    
+    return A_inv_sqrt
