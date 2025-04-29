@@ -9,6 +9,7 @@ import torch
 import torch.nn.functional as F
 
 
+
 ###############################################################################
 # Measurement Operator Class
 ###############################################################################
@@ -249,7 +250,7 @@ def generate_data_and_initialize(
 
     mask = torch.zeros(y_true.shape[0], device=device)
     mask[mask_indices] = 1
-
+    
     y_observed = (1 - mask) * y_true + mask * y_false
 
     # -- 3) Unified local initialization.
@@ -438,7 +439,7 @@ def compute_gradient(
             grad = nabla_F_transpose_g([X, X, X],
                                        subgradient_h.view(n1, n1, n1),
                                        True, 
-                                       tensor=True)
+                                       tensor=True).reshape(-1)
         else:
             # subgradient_h is shaped [n1, n2, n3]
             gX, gY, gZ = nabla_F_transpose_g([X, Y, Z],
@@ -453,7 +454,7 @@ def compute_gradient(
             grad = nabla_F_transpose_g([X, X],
                                        subgradient_h, 
                                        True, 
-                                       tensor=False)
+                                       tensor=False).reshape(-1)
         else:
             # subgradient_h is shaped [n1, n2]
             gX, gY = nabla_F_transpose_g([X, Y],
@@ -618,7 +619,7 @@ def update_factors(
         # 3D Tensor
         if symmetric:
             # Single factor used for all modes
-            X = X - stepsize * preconditioned_grad
+            X = X - stepsize * preconditioned_grad.reshape(X.shape)
             Y = X
             Z = X
         else:
@@ -631,7 +632,7 @@ def update_factors(
         # 2D Matrix
         if symmetric:
             # Single factor used for both rows/cols
-            X = X - stepsize * preconditioned_grad
+            X = X - stepsize * preconditioned_grad.reshape(X.shape)
             Y = X
             Z = X  # Not strictly used in a matrix scenario, but kept for consistency
         else:
@@ -710,3 +711,131 @@ def matrix_inverse_sqrt(A, device, eps=1e-13):
     A_inv_sqrt = eigenvectors @ inv_sqrt_diag @ eigenvectors.T
     
     return A_inv_sqrt
+
+def scaled_action(update, factors, symmetric, tensor=True):
+    
+    if tensor:
+        raise NotImplementedError('Scaled does not exist for CP factorization')
+    else:
+        # Matrix factorization case.
+        if symmetric:
+            X = factors[0]
+            g_mat = update.reshape(X.shape)
+            return (2 * g_mat @ (X.T @ X)).reshape(-1)
+        else:
+            X, Y = factors
+            shapes = [X.shape, Y.shape]
+            gx, gy = split(update, shapes)
+            op_x = (gx @ (Y.T @ Y)).reshape(-1)
+            op_y = (gy @ (X.T @ X)).reshape(-1)
+            return torch.cat((op_x, op_y))
+        
+def ad_hoc_matrix_sensing(
+    X, Y, Z,
+    T_star,
+    measurement_operator,
+    y_observed,
+    n_iter,
+    method,
+    loss_ord,
+    m,
+    n1, n2, n3,
+    sizes,
+    split,
+    symmetric=False,
+    tensor=False,
+    projected_stepsize=False,
+    geom_decay=None,
+    q=None,
+    lambda_=None,
+    gamma=None,
+    gamma_custom=None,
+    device=None
+):
+    """
+    Perform iterative optimization of factors X, Y, (and Z if tensor=True).
+    Returns:
+        errs: list of relative errors (length ≤ n_iter)
+        X, Y, Z: the final updated factors
+    """
+    errs = []
+
+    for k in range(n_iter):
+        # Reconstruct the model
+        if tensor:
+            T = torch.einsum('ir,jr,kr->ijk', X, Y, Z)
+        else:
+            T = X @ Y.T
+
+        err = torch.norm(T - T_star)
+        rel_err = err / torch.norm(T_star)
+        if k % 20 == 0:
+            print(f"{method:^30} | Iteration: {k:03d} | Relative Error: {rel_err.item():.3e}")
+        if rel_err < 1e-14:
+            errs += [1e-15 for _ in range(k, n_iter)]
+            break
+        errs.append(rel_err.item())
+
+        # Compute residual and its subgradient
+        residual = measurement_operator.A(T) - y_observed
+        if loss_ord == 1:
+            subgradient_h = measurement_operator.A_adj(torch.sign(residual)).view(-1)
+            h_c_x = torch.sum(torch.abs(residual)).item()
+        elif loss_ord == 0.5:
+            subgradient_h = measurement_operator.A_adj(residual / torch.norm(residual)).view(-1)
+            h_c_x = torch.norm(residual).item()
+        elif loss_ord == 2:
+            subgradient_h = measurement_operator.A_adj(residual).view(-1)
+            h_c_x = 0.5 * (torch.norm(residual) ** 2).item()
+        elif loss_ord == 10:
+            subgradient_h = (1/m) * measurement_operator.A_adj(torch.sign(residual)).view(-1)
+            h_c_x = (1/m) * torch.sum(torch.abs(residual)).item()
+        else:
+            raise ValueError(f"Unsupported loss_ord: {loss_ord}")
+
+        # Compute (pre)gradient
+        grad = compute_gradient(
+            X, Y, Z if tensor else None,
+            subgradient_h, n1, n2, n3,
+            symmetric=symmetric, tensor=tensor
+        )
+        if method == 'OPSA($\\lambda=10^{-8}$)':
+            grad += 1e-8 * torch.cat((X.view(-1), Y.view(-1)))
+
+        # Stepsize & damping selection
+        stepsize, damping = compute_stepsize_and_damping(
+            method, grad, subgradient_h, h_c_x, loss_ord,
+            symmetric, tensor=tensor,
+            geom_decay=geom_decay, q=q,
+            lambda_=lambda_, gamma=gamma,
+            k=k, X=X, Y=Y,
+            G=split(grad, sizes),
+            device=device, gamma_custom=gamma_custom
+        )
+
+        # Build operator for CG
+        factors = [X, Y, Z] if tensor else [X, Y]
+        if method in ['Precond. gradient', 'Scaled gradient($\\lambda=10^{-8}$)', 'OPSA($\\lambda=10^{-8}$)']:
+            operator_fn = lambda x: scaled_action(x, factors, symmetric, tensor=tensor)
+        elif method in ['Gradient descent', 'Polyak Subgradient']:
+            operator_fn = lambda x: x
+        else:
+            raise NotImplementedError(f"Unknown method: {method}")
+
+        # Solve for (preconditioned) gradient update
+        preconditioned_grad = cg_solve(operator_fn, grad, damping)
+
+      
+
+        # Update factor matrices/tensors
+        X, Y, Z = update_factors(
+            X, Y, (Z if tensor else None),
+            preconditioned_grad if method not in ['Gradient descent', 'Polyak Subgradient'] else grad,
+            stepsize, sizes, split,
+            symmetric=symmetric, tensor=tensor
+        )
+        if method == 'OPSA($\\lambda=10^{-8}$)':
+            X, Y = rebalance(X, Y, device)
+
+    return errs
+
