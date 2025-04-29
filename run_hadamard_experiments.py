@@ -24,7 +24,7 @@ def generate_point_on_boundary_positive_orthant(p, epsilon):
 
     return new_point
 
-def generate_difficult_A(m, n, kappa_A=2):
+def generate_difficult_A(m, n, kappa_A=1):
    
     s_values = torch.linspace(1, 1/kappa_A, n)
 
@@ -82,7 +82,6 @@ def run_nonegative_least_squares_experiments(methods_test, experiment_setups, r_
     
     outputs = {}
     for r, kappa in experiment_setups:
-        
         
         m = m_divided_by_r*r
         n = r
@@ -155,5 +154,5 @@ def run_nonegative_least_squares_experiments(methods_test, experiment_setups, r_
             np.savetxt(os.path.join(base_dir, fname), np.array(errs), delimiter=',')
         
                
-        return outputs
+    return outputs
            

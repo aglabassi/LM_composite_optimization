@@ -144,11 +144,10 @@ def plot_losses_with_styles(losses, stds, r_true, loss_ord, base_dir, problem, k
             std = np.array(stds[method][k])
 
             # Determine the index where errors have converged to machine epsilon
-            convergence_threshold = 1e-13   # Slightly above machine epsilon to account for numerical errors
+            convergence_threshold = 1e-13 if not had else 1e-15  # Slightly above machine epsilon to account for numerical errors
             divergence_threshold  = 1e3
             converged_indices = np.where(errs <= convergence_threshold)[0]
             diverged_indices = np.where(errs  >= divergence_threshold)[0]
-            print(method, k)
             if converged_indices.size > 0:
                 last_index = converged_indices[0] + 1  # Include the converged point
             elif diverged_indices.size > 0:
@@ -199,8 +198,6 @@ def plot_losses_with_styles(losses, stds, r_true, loss_ord, base_dir, problem, k
             #     tmp = np.where(diverged_idx < indices)[0][0]
             #     indices = indices[:tmp+1]
             #     errs *= (idx_ + 1)
-                
-            print(indices)
             ax.plot(
                 indices,
                 errs[indices],

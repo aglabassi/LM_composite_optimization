@@ -12,7 +12,7 @@ import pickle
 from plotting_utils  import collect_compute_mean,\
  plot_losses_with_styles, plot_transition_heatmap, plot_results_sensitivity
 from run_matrix_tensor_experiments import run_matrix_tensor_sensing_experiments
-from run_hadamard_experiments import run_nonegative_least_squares
+from run_hadamard_experiments import run_nonegative_least_squares_experiments
 
 
 save_path = './'
@@ -82,11 +82,11 @@ r_true = 10
 r=100
 
 kappa = 1
-experiment_setups = [(r_true,1),(r,100)]
+experiment_setups = [(r_true,1),(r,100), (r,1),(r_true,100)]
 n_trial = 1
 methods_test = methods = ['Polyak Subgradient', 'Levenberg-Marquardt (ours)', 'Gauss-Newton']
-n_iter = 100
-run_nonegative_least_squares(methods_test, experiment_setups, r_true,
+n_iter = 500
+run_nonegative_least_squares_experiments(methods_test, experiment_setups, r_true,
                  1, device,
                  n_iter, base_dir, 1)
 
