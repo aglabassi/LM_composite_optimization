@@ -23,7 +23,7 @@ def run_matrix_tensor_sensing_experiments(methods_test, experiment_setups, n1, n
                  n_iter, base_dir, loss_ord, initial_relative_error,
                  symmetric, tensor=True, had=False, corr_level=0,
                  geom_decay=False, q=0.97, lambda_=1e-5,
-                 gamma=1e-8, gamma_custom=None, projected_stepsize=False):
+                 gamma=1e-8, gamma_custom=None):
 
     outputs = {}
     for r, kappa in experiment_setups:
@@ -117,14 +117,23 @@ def run_matrix_tensor_sensing_experiments(methods_test, experiment_setups, n1, n
                     
                 subgrad = make_subgradient_fc(y_obs)(x)
                 grad = action_nabla_F_transpose_fc(x, subgrad)
-                    
+                
+                
+                if method != 'Polyak Subgradient':
+                    precond_gn_grad = lm_solver(x, 0, grad)
+                    after_gram_precond_gn_grad = GN_action_matrix_tensor(precond_gn_grad, unpack(x),
+                                                      symmetric, tensor=tensor)
+                else:
+                    precond_gn_grad = after_gram_precond_gn_grad = None
+                        
                 stepsize, damping = compute_stepsize_and_damping(
                     method, grad, subgrad, h_c_x, loss_ord,
                     symmetric, tensor=tensor,
                     geom_decay=geom_decay, q=q, lambda_=lambda_,
                     gamma=gamma, k=k, X=None, Y=None, G=None,
-                    device=device, gamma_custom=gamma_custom
-                )
+                    device=device, gamma_custom=gamma_custom,
+                    precond_gn_grad=precond_gn_grad,
+                    after_gram_precond_gn_grad=after_gram_precond_gn_grad)
                 return stepsize, damping
             return stepsize_damping_fc
 
@@ -184,7 +193,6 @@ def run_matrix_tensor_sensing_experiments(methods_test, experiment_setups, n1, n
                         n1, n2, n3, sizes, split,
                         symmetric=symmetric,
                         tensor=tensor,
-                        projected_stepsize=projected_stepsize,
                         geom_decay=geom_decay, q=q,
                         lambda_=lambda_, gamma=gamma,
                         gamma_custom=gamma_custom,

@@ -23,7 +23,6 @@ def collect_compute_mean(keys, loss_ord, r_true, res, methods, problem, base_dir
         for method in methods:
             file_pattern = os.path.join(base_dir, 
                                         f"{('res' if res else 'exp') + problem}_{method}_l_{loss_ord}_r*={r_true}_r={rank}_condn={cond_number}_trial_*.csv")
-            
             file_list = glob.glob(file_pattern)
             data_list = []
             

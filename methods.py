@@ -21,13 +21,13 @@ def subgradient_method(
         damping_fc: function (k, x) -> damping parameter at iteration k.
         subgradient_fc: function (x) -> element of ∂v(F(x)).
         action_nabla_F_transpose_fc: function (x, v) -> ∇F(x)^T v.
-        nabla_F_transpose_nabla_F_linear_system_solver: 
+        levenberg_marquardt_linear_system_solver: 
             function (x, damping, b) -> solves (∇F(x)^T ∇F(x) + damping * I)g = b.
         x0: starting point.
         n_iter: number of iterations.
 
     Returns:
-        x: final iterate.
+        iterates
     """
     xs = []
     x = x0
@@ -50,7 +50,7 @@ def LM_subgradient_method(
     damping_fc,
     subgradient_fc,
     action_nabla_F_transpose_fc,
-    nabla_F_transpose_nabla_F_linear_system_solver,
+    levenberg_marquardt_linear_system_solver,
     x0,
     n_iter=1000
 ):
@@ -62,13 +62,13 @@ def LM_subgradient_method(
         damping_fc: function (k, x) -> damping parameter at iteration k.
         subgradient_fc: function (x) -> element of ∂v(F(x)).
         action_nabla_F_transpose_fc: function (x, v) -> ∇F(x)^T v.
-        nabla_F_transpose_nabla_F_linear_system_solver: 
+        levenberg_marquardt_linear_system_solver: 
             function (x, damping, b) -> solves (∇F(x)^T ∇F(x) + damping * I)g = b.
         x0: starting point.
         n_iter: number of iterations.
 
     Returns:
-        x: final iterate.
+        iterates
     """
     xs = []
     x = x0
@@ -78,7 +78,7 @@ def LM_subgradient_method(
         damping = damping_fc(k, x)
         subgradient = subgradient_fc(x)
         gradient = action_nabla_F_transpose_fc(x, subgradient)
-        preconditioned_gradient = nabla_F_transpose_nabla_F_linear_system_solver(x, damping, gradient)
+        preconditioned_gradient = levenberg_marquardt_linear_system_solver(x, damping, gradient)
         
         x = x - stepsize * preconditioned_gradient
 
@@ -92,7 +92,7 @@ def GN_subgradient_method(
     stepsize_fc,
     subgradient_fc,
     action_nabla_F_transpose_fc,
-    nabla_F_transpose_nabla_F_linear_system_solver,
+    levenberg_marquardt_linear_system_solver,
     x0,
     n_iter=1000
 ):
@@ -103,13 +103,13 @@ def GN_subgradient_method(
         stepsize_fc: function (k, x) -> stepsize at iteration k.
         subgradient_fc: function (x) -> element of ∂v(F(x)).
         action_nabla_F_transpose_fc: function (x, v) -> ∇F(x)^T v.
-        nabla_F_transpose_nabla_F_linear_system_solver: 
+        levenberg_marquardt_linear_system_solver: 
             function (x, b) -> solves  (∇F(x)^T ∇F(x)) g = b.
         x0: starting point.
         n_iter: number of iterations.
 
     Returns:
-        x: final iterate.
+        iterates
     """
     xs = []
     x = x0
@@ -118,7 +118,7 @@ def GN_subgradient_method(
         stepsize = stepsize_fc(k, x)
         subgradient = subgradient_fc(x)
         gradient = action_nabla_F_transpose_fc(x, subgradient)
-        preconditioned_gradient = nabla_F_transpose_nabla_F_linear_system_solver(x, gradient)
+        preconditioned_gradient = levenberg_marquardt_linear_system_solver(x, gradient)
         
         x = x - stepsize * preconditioned_gradient
 

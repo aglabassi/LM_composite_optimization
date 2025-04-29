@@ -481,7 +481,7 @@ def compute_stepsize_and_damping(
     q=None,
     gamma=None,
     k=None,
-    X=None,Y=None, G=None, device=None,gamma_one=False, gamma_custom=None#Use for polyak stepsize with gamma =1
+    X=None,Y=None, G=None, device=None,gamma_one=False, gamma_custom=None,precond_gn_grad=None,after_gram_precond_gn_grad=None
 ):
     """
     Computes the stepsize and damping for various methods.
@@ -566,7 +566,7 @@ def compute_stepsize_and_damping(
                 gamma=1
             if gamma_custom is not None:
                 gamma=gamma_custom
-            stepsize = (gamma*h_c_x) / torch.dot(subgradient_h, subgradient_h)
+            stepsize = (gamma*h_c_x) / torch.sum(precond_gn_grad * after_gram_precond_gn_grad)
 
     else:
         raise NotImplementedError(f"Unknown method: {method}")
@@ -744,7 +744,6 @@ def ad_hoc_matrix_sensing(
     split,
     symmetric=False,
     tensor=False,
-    projected_stepsize=False,
     geom_decay=None,
     q=None,
     lambda_=None,
