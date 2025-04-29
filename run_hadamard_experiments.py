@@ -76,7 +76,7 @@ def setup_experiment(m, n, r_true, kappa, initial_rel_err, device='cpu'):
 
 
 
-def run_nonegative_least_squares(methods_test, experiment_setups, r_true,
+def run_nonegative_least_squares_experiments(methods_test, experiment_setups, r_true,
                  m_divided_by_r, device,
                  n_iter, base_dir, initial_rel_err):
     
