@@ -24,20 +24,18 @@ def generate_point_on_boundary_positive_orthant(p, epsilon):
 
     return new_point
 
-def generate_difficult_A(m, n, kappa_A=1):
-   
-    s_values = torch.linspace(1, 1/kappa_A, n)
+def generate_difficult_A(m, n, kappa_A=1, device='cpu'):
+    
+    s_values = torch.linspace(1, 1 / kappa_A, n, device=device)
 
-    U, _ = torch.linalg.qr(torch.randn(m, m))
-    V, _ = torch.linalg.qr(torch.randn(n, n))
+    U, _ = torch.linalg.qr(torch.randn(m, m, device=device))
+    V, _ = torch.linalg.qr(torch.randn(n, n, device=device))
 
-    Sigma = torch.zeros((m, n))
+    Sigma = torch.zeros((m, n), device=device)
     for i in range(min(m, n)):
         Sigma[i, i] = s_values[i]
 
-    # Construct A = U * Sigma * V^T
     A = U @ Sigma @ V.T
-
     return A
 
 
@@ -67,7 +65,7 @@ def setup_experiment(m, n, r_true, kappa, initial_rel_err, device='cpu'):
     x0 = torch.sqrt(z0)
 
 
-    A = generate_difficult_A(m, n)
+    A = generate_difficult_A(m, n,device=device)
 
     b = A @ (x_star**2)
 
