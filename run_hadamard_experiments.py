@@ -24,7 +24,7 @@ def generate_point_on_boundary_positive_orthant(p, epsilon):
 
     return new_point
 
-def generate_difficult_A(m, n, kappa_A=1, device='cpu'):
+def generate_difficult_A(m, n, kappa_A=5, device='cpu'):
     
     s_values = torch.linspace(1, 1 / kappa_A, n, device=device)
 
@@ -76,7 +76,7 @@ def setup_experiment(m, n, r_true, kappa, initial_rel_err, device='cpu'):
 
 def run_nonegative_least_squares_experiments(methods_test, experiment_setups, r_true,
                  m_divided_by_r, device,
-                 n_iter, base_dir, initial_rel_err):
+                 n_iter, base_dir, initial_rel_err, loss_ord):
     
     outputs = {}
     for r, kappa in experiment_setups:
@@ -89,9 +89,17 @@ def run_nonegative_least_squares_experiments(methods_test, experiment_setups, r_
         for method in methods_test:
             
             def stepsize_fc(k,x):
-                numerator  = 0.5*( torch.linalg.norm( A@(x*x) - b , ord=2)**2) - 0 
-                if method != 'Polyak subgradient':
-                    grad = action_nabla_F_transpose_fc(x, subgradient_fc(x))
+                
+                if loss_ord == 2:
+                    numerator  =  0.5*( torch.linalg.norm( A@(x*x) - b , ord=2)**2) - 0
+                elif loss_ord == 1:
+                    numerator = torch.linalg.norm(A@(x*x) - b, ord=1)
+                elif loss_ord == 0.5:
+                    numerator  =  torch.linalg.norm( A@(x*x) - b , ord=2)
+                    
+                    
+                grad = action_nabla_F_transpose_fc(x, subgradient_fc(x))     
+                if method != 'Polyak Subgradient':
                     gn_precond_grad = lm_solver(x, 0, grad)
                     denominator = torch.sum(gn_precond_grad * action_nabla_F_transpose_fc(x, 
                                                                                           action_nabla_F_transpose_fc(x, gn_precond_grad )))
@@ -102,7 +110,13 @@ def run_nonegative_least_squares_experiments(methods_test, experiment_setups, r_
             def damping_fc(k,x):
                 return 10**-2 *torch.sqrt( 0.5*( torch.linalg.norm( A@(x*x) - b , ord=2)**2))
             def subgradient_fc(x):
-                return A.T@(A@(x*x) - b )
+                if loss_ord ==2:
+                    res = A.T@(A@(x*x) - b )
+                elif loss_ord ==1:
+                    res =  A.T@(torch.sign(A@(x*x) - b ))
+                elif loss_ord==0.5:
+                    res = A.T@(A@(x*x) - b ) / (torch.linalg.norm( A@(x*x) - b))
+                return res 
             def action_nabla_F_transpose_fc(x,v):
                 return 2*(x*v)
             
@@ -148,7 +162,7 @@ def run_nonegative_least_squares_experiments(methods_test, experiment_setups, r_
                     print(f"{method:^30} | Iteration: {k:03d} | Relative Error: {rel_err.item():.3e}")
 
             outputs[method] = errs
-            fname = f'exphad_{method}_l_{2}_r*={r_true}_r={n}_condn={kappa}_trial_{0}.csv'
+            fname = f'exphad_{method}_l_{loss_ord}_r*={r_true}_r={n}_condn={kappa}_trial_{0}.csv'
             np.savetxt(os.path.join(base_dir, fname), np.array(errs), delimiter=',')
         
                

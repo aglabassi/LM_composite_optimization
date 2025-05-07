@@ -799,7 +799,7 @@ def ad_hoc_matrix_sensing(
             symmetric=symmetric, tensor=tensor
         )
         if method == 'OPSA($\\lambda=10^{-8}$)':
-            grad += 1e-8 * torch.cat((X.view(-1), Y.view(-1)))
+            grad += 1e-8 * torch.cat((X.reshape(-1), Y.reshape(-1)))
 
         # Stepsize & damping selection
         stepsize, damping = compute_stepsize_and_damping(
