@@ -44,7 +44,7 @@ def collect_compute_mean(keys, loss_ord, r_true, res, methods, problem, base_dir
     return losses, stds
 
 
-def plot_losses_with_styles(losses, stds, r_true, loss_ord, base_dir, problem, kappa, num_dots=0.1, intro_plot=False, symmetric=True, tensor=False,had=False, d=None):
+def plot_losses_with_styles(losses, stds, r_true, loss_ord, base_dir, problem, kappa, num_dots=0.1, intro_plot=False, symmetric=True, tensor=False,had=False, d=None,loss2=None, stds2=None):
     """
     Plots the losses with distinct styles for methods, parameterizations, and ill-conditioning levels.
 
@@ -215,6 +215,55 @@ def plot_losses_with_styles(losses, stds, r_true, loss_ord, base_dir, problem, k
                 alpha=0.2,
                 color=color
             )
+            
+            if loss2 is not None:
+                errs2 = np.array(loss2[method][k])
+                converged_indices = np.where(errs2 <= convergence_threshold)[0]
+                diverged_indices = np.where(errs2  >= divergence_threshold)[0]
+                if converged_indices.size > 0:
+                    last_index = converged_indices[0] + 1  # Include the converged point
+                elif diverged_indices.size > 0:
+                    last_index = diverged_indices[0] + 1
+                else:
+                    last_index = len(errs)
+                
+                # Slice the errors up to the convergence point
+                errs = errs[:last_index]
+                std = std[:last_index]
+                
+                num_dots_adapted = int(num_dots * last_index)
+                if k[1] > 1:
+                    num_dots_adapted //=2
+                
+                start = 0
+                num_dots_adapted = max(1, num_dots_adapted)
+                indices = np.arange(start, last_index, num_dots_adapted)
+                if k[1] > 1:
+                    indices = [ i for idx,i in enumerate(indices) if idx %2 != 0]
+                
+                indices = np.hstack((np.zeros(1, dtype=int), indices))
+                if indices.size == 0:
+                    indices = np.array([0])  # Ensure at least one point is plotted
+                elif indices[-1] != last_index - 1:
+                    # Include the last index to reach the convergence threshold
+                    indices = np.append(indices, last_index - 1)
+                    
+                ax.plot(indices, errs2[indices],
+                        linestyle=linestyle,
+                        color=color,
+                        marker=marker,
+                        label=None,
+                        alpha=0.5)  # ← faded more
+            
+                # optional: error band for loss2
+                if stds2 is not None:
+                    std2 = np.array(stds2[method][k])[:last_index]
+                    ax.fill_between(indices,
+                                    errs2[indices] - std2[indices],
+                                    errs2[indices] + std2[indices],
+                                    alpha=0.1,  # even lighter
+                                    color=color)
+
 
     # Set the plot title based on the problem type
     object_ = {

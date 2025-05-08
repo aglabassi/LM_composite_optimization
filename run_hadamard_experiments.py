@@ -108,7 +108,10 @@ def run_nonegative_least_squares_experiments(methods_test, experiment_setups, r_
                 return 0.5*numerator/denominator
                 
             def damping_fc(k,x):
-                return 10**-2 *torch.sqrt( 0.5*( torch.linalg.norm( A@(x*x) - b , ord=2)**2))
+                if loss_ord == 2:
+                    return 10**-2 *torch.sqrt( 0.5*( torch.linalg.norm( A@(x*x) - b , ord=2)**2))
+                elif loss_ord==0.5:
+                    return 10**-2* torch.linalg.norm( A@(x*x) - b , ord=2)
             def subgradient_fc(x):
                 if loss_ord ==2:
                     res = A.T@(A@(x*x) - b )
